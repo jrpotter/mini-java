@@ -2,11 +2,9 @@
 class PA2 {
 
 	public boolean c;
+	private static id[] test;
 	
 	public static void main(String[] args) {
-		if(x > 1)
-			x = 1 + 2 * x;
-		else 
-			b[3].a = 4;
+		int x = -1 || 2 + (8 <= 8) == -6 && (9 > 10) * 3;
 	}
 }

@@ -32,9 +32,17 @@ public class Scanner {
 	    	switch(c) {
 		    		
 	    		// Operators
+	    		case '*':
+	    			token = new Token(attr, Token.TYPE.BINOP);
+	    			break;
+	    			
 		    	case '+':
-		    	case '*':
+		    		if(peek('+')) throw new IOException();
+		    		token = new Token(attr, Token.TYPE.BINOP);
+		    		break;
+		    	
 		    	case '-':
+		    		if(peek('-')) throw new IOException();
 		    		token = new Token(attr, Token.TYPE.BINOP);
 		    		break;
 		    		

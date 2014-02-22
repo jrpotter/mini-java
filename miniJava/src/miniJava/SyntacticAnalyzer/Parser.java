@@ -387,15 +387,14 @@ public class Parser {
 	 *     Reference
 	 *   | Reference ( ArgumentList? )
 	 *	 | unop Expression
-	 *   | Expression binop Expression
 	 *   | ( Expression )
 	 *   | num | true | false
 	 *   | new (id() | int [ Expression ] | id [ Expression ] )
 	 * @return
 	 * @throws IOException
 	 */
-	private Expression parseExpression() throws IOException {
-		
+	private Expression parseSingleExpression() throws IOException {
+	
 		Expression e = null;
 		switch(peek(1).type) {
 		
@@ -429,7 +428,7 @@ public class Parser {
 			case BINOP: {
 				if(peek(1).spelling.equals("!") || peek(1).spelling.equals("-")) {
 					Operator o = new Operator(accept(peek(1).type), null);
-					e = new UnaryExpr(o, parseExpression(), null);
+					e = new UnaryExpr(o, parseSingleExpression(), null);
 				} 
 				else throw new IOException();
 				break;
@@ -491,22 +490,33 @@ public class Parser {
 				throw new IOException();
 		}
 		
-		// Expression binop Expression
-		if(peek(1).type == Token.TYPE.BINOP) {
+		return e;
+	}
+	
+	/**
+	 * Disjunction & Initial Call:
+	 * Expression ::= Expression binop Expression
+	 * @return
+	 * @throws IOException
+	 */
+	private Expression parseExpression() throws IOException {
+		Expression e = parseCExpression();
+		while(peek(1).spelling.equals("||")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseDExpression(), null);
+			e = new BinaryExpr(o, e, parseExpression(), null);
 		}
 		
 		return e;
 	}
 	
 	/**
-	 * Disjunction
+	 * Conjunction
+	 * @return
 	 * @throws IOException
 	 */
-	private Expression parseDExpression() throws IOException {
-		Expression e = parseCExpression();
-		while(peek(1).spelling.equals("||")) {
+	private Expression parseCExpression() throws IOException {
+		Expression e = parseEExpression();
+		while(peek(1).spelling.equals("&&")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
 			e = new BinaryExpr(o, e, parseCExpression(), null);
 		}
@@ -515,12 +525,13 @@ public class Parser {
 	}
 	
 	/**
-	 * Conjunction
+	 * Equality
+	 * @return
 	 * @throws IOException
 	 */
-	private Expression parseCExpression() throws IOException {
-		Expression e = parseEExpression();
-		while(peek(1).spelling.equals("&&")) {
+	private Expression parseEExpression() throws IOException {
+		Expression e = parseRExpression();
+		while(peek(1).spelling.equals("==") || peek(1).spelling.equals("!=")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
 			e = new BinaryExpr(o, e, parseEExpression(), null);
 		}
@@ -529,12 +540,14 @@ public class Parser {
 	}
 	
 	/**
-	 * Equality
+	 * Relational
+	 * @return
 	 * @throws IOException
 	 */
-	private Expression parseEExpression() throws IOException {
-		Expression e = parseRExpression();
-		while(peek(1).spelling.equals("==") || peek(1).spelling.equals("!=")) {
+	private Expression parseRExpression() throws IOException {
+		Expression e = parseAExpression();
+		while(peek(1).spelling.equals("<") || peek(1).spelling.equals("<=")
+		   || peek(1).spelling.equals(">") || peek(1).spelling.equals(">=")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
 			e = new BinaryExpr(o, e, parseRExpression(), null);
 		}
@@ -543,48 +556,34 @@ public class Parser {
 	}
 	
 	/**
-	 * Relational
-	 * @throws IOException
-	 */
-	private Expression parseRExpression() throws IOException {
-		Expression e = parseAExpression();
-		while(peek(1).spelling.equals("<=") || peek(1).spelling.equals(">=")
-		   || peek(1).spelling.equals("<") || peek(1).spelling.equals(">")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseAExpression(), null);
-		}
-		
-		return e;
-	}
-
-	/**
 	 * Additive
+	 * @return
 	 * @throws IOException
 	 */
 	private Expression parseAExpression() throws IOException {
 		Expression e = parseMExpression();
 		while(peek(1).spelling.equals("+") || peek(1).spelling.equals("-")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseMExpression(), null);
-		}
-		
-		return e;
-	}
-
-	/**
-	 * Multiplicative
-	 * @throws IOException
-	 */
-	private Expression parseMExpression() throws IOException {
-		Expression e = parseExpression();
-		while(peek(1).spelling.equals("*") || peek(1).spelling.equals("/")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseExpression(), null);
+			e = new BinaryExpr(o, e, parseAExpression(), null);
 		}
 		
 		return e;
 	}
 	
+	/**
+	 * Multiplicative
+	 * @return
+	 * @throws IOException
+	 */
+	private Expression parseMExpression() throws IOException {
+		Expression e = parseSingleExpression();
+		while(peek(1).spelling.equals("*") || peek(1).spelling.equals("/")) {
+			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
+			e = new BinaryExpr(o, e, parseMExpression(), null);
+		}
+		
+		return e;
+	}
 	
 	/**
 	 * Sees what the next token is, caching the result.
