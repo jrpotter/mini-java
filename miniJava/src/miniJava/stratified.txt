@@ -1,0 +1,50 @@
+Program ::= (ClassDeclaration)* eot
+
+ClassDeclaration ::=   
+	class id  {       
+		(Declarators id (; | MethodDeclaration))*   
+	}
+	
+MethodDeclaration ::=
+	(ParameterList?) {
+		Statement* (return Expression ;)?
+	}
+	
+Declarators ::= (public | private)? static? Type
+
+Type ::= boolean | void | int ([])? | id ([])?
+
+ParameterList ::= Type id (, Type id)*
+
+ArgumentList ::= Expression (, Expression)*
+
+Reference ::= BaseRef (. id ([ Expression])?)*
+
+BaseRef ::= this | id ([ Expression])?
+
+Statement ::=
+	{Statement*}
+	| Type id = Expression;
+	| Reference = Expression;
+	| Reference ( ArgumentList? );
+	| if (Expression) Statement (else Statement)?
+	| while (Expression) Statement
+	
+Expression ::=
+	num | true | false
+	| ( Expression )
+	| new (id() | int [ Expression ] | id [ Expression ] )
+	| Reference ((ArgumentList?))?
+	| DExpression
+		
+DExpression ::= CExpression (|| CExpression)*
+CExpression ::= EExpression (&& EExpression)*
+EExpression ::= RExpression ((==|!=) RExpression)*
+RExpression ::= AExpression ((<=|<|>|>=) AExpression)*
+AExpression ::= MExpression ((+|-) MExpression)*
+MExpression ::= Expression ((*|/) Expression)*
+	
+	
+	
+	
+	

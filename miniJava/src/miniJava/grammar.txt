@@ -31,10 +31,10 @@ Statement ::=
 	| while (Expression) Statement
 	
 Expression ::=
-	Reference
-	| Reference ( ArgumentList? )
+	Reference ((ArgumentList?))?
 	| unop Expression
 	| Expression binop Expression
 	| ( Expression )
 	| num | true | false
 	| new (id() | int [ Expression ] | id [ Expression ] )
+	

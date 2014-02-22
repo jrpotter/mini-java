@@ -1,7 +1,10 @@
 package miniJava;
 
 import java.io.*;
+
 import miniJava.SyntacticAnalyzer.*;
+import miniJava.AbstractSyntaxTrees.*;
+import miniJava.AbstractSyntaxTrees.Package;
 
 public class Compiler {
 	
@@ -16,18 +19,19 @@ public class Compiler {
 		
 		try(FileReader input = new FileReader(args[0])) {
 			
+			// Setup
 			Scanner scanner = new Scanner(new BufferedReader(input));
 			Parser parser = new Parser(scanner);
-			parser.parse();
+			Package p = parser.parse();
 			
-			System.out.println("Works");
+			// Display
+			ASTDisplay display = new ASTDisplay();
+			display.showTree(p);
 			System.exit(0);
 			
 		} catch(FileNotFoundException e) {
-			System.out.println("Not Found");
 			System.exit(rc);
 		} catch(IOException e) {
-			System.out.println("Not Works");
 			System.exit(rc);
 		}
 	}

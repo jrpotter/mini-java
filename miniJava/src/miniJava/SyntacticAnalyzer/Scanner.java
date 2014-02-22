@@ -153,7 +153,7 @@ public class Scanner {
 	    			break;
 	    	}
     	}
-    	System.out.println(token.type);
+
     	return token;
     }
     

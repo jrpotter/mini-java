@@ -1,7 +1,12 @@
-// PA1 parse assign fail
-class Test {
+// Simple PA2 Example
+class PA2 {
 
-    void p(int a) {
-	that.this = 4;
-    }
+	public boolean c;
+	
+	public static void main(String[] args) {
+		if(x > 1)
+			x = 1 + 2 * x;
+		else 
+			b[3].a = 4;
+	}
 }

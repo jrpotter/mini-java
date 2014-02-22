@@ -69,10 +69,10 @@ public class Token {
      }
 	 
 	public final TYPE type;
-	public final String attr;
+	public final String spelling;
 		
-	public Token(String attr, TYPE type) {
+	public Token(String spelling, TYPE type) {
 		this.type = type;
-		this.attr = attr;
+		this.spelling = spelling;
 	}
 }
