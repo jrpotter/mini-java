@@ -500,10 +500,11 @@ public class Parser {
 	 * @throws IOException
 	 */
 	private Expression parseExpression() throws IOException {
+		
 		Expression e = parseCExpression();
 		while(peek(1).spelling.equals("||")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseExpression(), null);
+			e = new BinaryExpr(o, e, parseCExpression(), null);
 		}
 		
 		return e;
@@ -515,10 +516,11 @@ public class Parser {
 	 * @throws IOException
 	 */
 	private Expression parseCExpression() throws IOException {
+
 		Expression e = parseEExpression();
 		while(peek(1).spelling.equals("&&")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseCExpression(), null);
+			e = new BinaryExpr(o, e, parseEExpression(), null);
 		}
 		
 		return e;
@@ -530,10 +532,11 @@ public class Parser {
 	 * @throws IOException
 	 */
 	private Expression parseEExpression() throws IOException {
+		
 		Expression e = parseRExpression();
 		while(peek(1).spelling.equals("==") || peek(1).spelling.equals("!=")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseEExpression(), null);
+			e = new BinaryExpr(o, e, parseRExpression(), null);
 		}
 		
 		return e;
@@ -545,11 +548,12 @@ public class Parser {
 	 * @throws IOException
 	 */
 	private Expression parseRExpression() throws IOException {
+		
 		Expression e = parseAExpression();
 		while(peek(1).spelling.equals("<") || peek(1).spelling.equals("<=")
 		   || peek(1).spelling.equals(">") || peek(1).spelling.equals(">=")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseRExpression(), null);
+			e = new BinaryExpr(o, e, parseAExpression(), null);
 		}
 		
 		return e;
@@ -561,10 +565,11 @@ public class Parser {
 	 * @throws IOException
 	 */
 	private Expression parseAExpression() throws IOException {
+		
 		Expression e = parseMExpression();
 		while(peek(1).spelling.equals("+") || peek(1).spelling.equals("-")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseAExpression(), null);
+			e = new BinaryExpr(o, e, parseMExpression(), null);
 		}
 		
 		return e;
@@ -576,10 +581,11 @@ public class Parser {
 	 * @throws IOException
 	 */
 	private Expression parseMExpression() throws IOException {
+		
 		Expression e = parseSingleExpression();
 		while(peek(1).spelling.equals("*") || peek(1).spelling.equals("/")) {
 			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseMExpression(), null);
+			e = new BinaryExpr(o, e, parseSingleExpression(), null);
 		}
 		
 		return e;

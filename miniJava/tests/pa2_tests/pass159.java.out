@@ -1,0 +1,29 @@
+======= AST Display =========================
+Package
+  ClassDeclList [1]
+  . ClassDecl
+  .   "Test" classname
+  .   FieldDeclList [2]
+  .   . (public) FieldDecl
+  .   .   ArrayType
+  .   .     INT BaseType
+  .   .   "a" fieldname
+  .   . (public) FieldDecl
+  .   .   ArrayType
+  .   .     ClassType
+  .   .       "Test" classname
+  .   .   "t" fieldname
+  .   MethodDeclList [1]
+  .   . (public) MethodDecl
+  .   .   VOID BaseType
+  .   .   "p" methodname
+  .   .   ParameterDeclList [0]
+  .   .   StmtList [1]
+  .   .   . VarDeclStmt
+  .   .   .   VarDecl
+  .   .   .     VOID BaseType
+  .   .   .     "x" varname
+  .   .   .   RefExpr
+  .   .   .     IdRef
+  .   .   .       "y" Identifier
+=============================================

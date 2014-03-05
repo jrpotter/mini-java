@@ -1,0 +1,21 @@
+======= AST Display =========================
+Package
+  ClassDeclList [1]
+  . ClassDecl
+  .   "id" classname
+  .   FieldDeclList [0]
+  .   MethodDeclList [1]
+  .   . (private) MethodDecl
+  .   .   INT BaseType
+  .   .   "f" methodname
+  .   .   ParameterDeclList [2]
+  .   .   . ParameterDecl
+  .   .   .   INT BaseType
+  .   .   .   "x"parametername 
+  .   .   . ParameterDecl
+  .   .   .   BOOLEAN BaseType
+  .   .   .   "b"parametername 
+  .   .   StmtList [0]
+  .   .   LiteralExpr
+  .   .     "3" IntLiteral
+=============================================

@@ -1,0 +1,20 @@
+======= AST Display =========================
+Package
+  ClassDeclList [1]
+  . ClassDecl
+  .   "LegalStmt" classname
+  .   FieldDeclList [0]
+  .   MethodDeclList [1]
+  .   . (public) MethodDecl
+  .   .   VOID BaseType
+  .   .   "main" methodname
+  .   .   ParameterDeclList [0]
+  .   .   StmtList [1]
+  .   .   . CallStmt
+  .   .   .   ThisRef
+  .   .   .   ExprList [2]
+  .   .   .   . LiteralExpr
+  .   .   .   .   "3" IntLiteral
+  .   .   .   . LiteralExpr
+  .   .   .   .   "4" IntLiteral
+=============================================

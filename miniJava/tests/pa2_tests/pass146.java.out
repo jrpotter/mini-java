@@ -1,0 +1,11 @@
+======= AST Display =========================
+Package
+  ClassDeclList [1]
+  . ClassDecl
+  .   "id" classname
+  .   FieldDeclList [1]
+  .   . (public static) FieldDecl
+  .   .   VOID BaseType
+  .   .   "x" fieldname
+  .   MethodDeclList [0]
+=============================================
