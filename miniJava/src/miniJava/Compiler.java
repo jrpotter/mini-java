@@ -3,6 +3,7 @@ package miniJava;
 import java.io.*;
 
 import miniJava.SyntacticAnalyzer.*;
+import miniJava.SyntacticAnalyzer.Errors.*;
 import miniJava.AbstractSyntaxTrees.*;
 import miniJava.AbstractSyntaxTrees.Package;
 
@@ -30,10 +31,16 @@ public class Compiler {
 			System.exit(0);
 			
 		} catch(FileNotFoundException e) {
-			System.exit(rc);
+			System.out.println(e.getMessage());
 		} catch(IOException e) {
-			System.exit(rc);
+			System.out.println(e.getMessage());
+		}catch(ScanningException e) {
+			System.out.println(e.getMessage());
+		} catch(ParsingException e) {
+			System.out.println(e.getMessage());
 		}
+		
+		System.exit(rc);
 	}
 
 }

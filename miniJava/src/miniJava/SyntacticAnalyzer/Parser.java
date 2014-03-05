@@ -1,9 +1,10 @@
 package miniJava.SyntacticAnalyzer;
 
-import java.io.*;
 import java.util.LinkedList;
+
 import miniJava.AbstractSyntaxTrees.*;
 import miniJava.AbstractSyntaxTrees.Package;
+import miniJava.SyntacticAnalyzer.Errors.*;
 
 public class Parser {
 	
@@ -18,9 +19,9 @@ public class Parser {
 	/**
 	 * Program ::= (ClassDeclaration)* eot
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	public Package parse() throws IOException {
+	public Package parse() throws ParsingException, ScanningException {
 		ClassDeclList decls = new ClassDeclList();
 		while(peek(1).type == Token.TYPE.CLASS) {
 			decls.add(parseClassDeclaration());
@@ -36,9 +37,9 @@ public class Parser {
 	 *	       (Declarators id (; | MethodDeclaration))*   
 	 *     }
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private ClassDecl parseClassDeclaration() throws IOException {
+	private ClassDecl parseClassDeclaration() throws ParsingException, ScanningException {
 		
 		// Class Header
 		accept(Token.TYPE.CLASS);
@@ -72,9 +73,9 @@ public class Parser {
 	/**
 	 * Declarators ::= (public | private)? static? Type
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Declarators parseDeclarators() throws IOException {
+	private Declarators parseDeclarators() throws ParsingException, ScanningException {
 		
 		// Visibility
 		boolean isPrivate = false;
@@ -103,9 +104,9 @@ public class Parser {
 	 *	   }
 	 * @param f describes the declaratory aspect of the method
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private MethodDecl parseMethodDeclaration(FieldDecl f) throws IOException {
+	private MethodDecl parseMethodDeclaration(FieldDecl f) throws ParsingException, ScanningException {
 		
 		// Method Header
 		accept(Token.TYPE.LPAREN);
@@ -139,9 +140,9 @@ public class Parser {
 	/**
 	 * Type ::= boolean | void | int ([])? | id ([])?
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Type parseType() throws IOException {
+	private Type parseType() throws ParsingException, ScanningException {
 		
 		switch(peek(1).type) {
 		
@@ -181,16 +182,16 @@ public class Parser {
 			}
 				
 			default:
-				throw new IOException();
+				throw new ParsingException();
 		}
 	}
 	
 	/**
 	 * ParameterList ::= Type id (, Type id)*
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private ParameterDeclList parseParameterList() throws IOException {
+	private ParameterDeclList parseParameterList() throws ParsingException, ScanningException {
 		
 		ParameterDeclList decls = new ParameterDeclList(); 
 		
@@ -213,9 +214,9 @@ public class Parser {
 	/**
 	 * ArgumentList ::= Expression (, Expression)*
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private ExprList parseArgumentList() throws IOException {
+	private ExprList parseArgumentList() throws ParsingException, ScanningException {
 		ExprList e = new ExprList();
 		e.add(parseExpression());
 		while(peek(1).type == Token.TYPE.COMMA) {
@@ -229,9 +230,9 @@ public class Parser {
 	/**
 	 * Reference ::= BaseRef (. BaseRef)*
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Reference parseReference() throws IOException {
+	private Reference parseReference() throws ParsingException, ScanningException {
 		Reference r = parseBaseRef();
 		while(peek(1).type == Token.TYPE.PERIOD) {
 			accept(Token.TYPE.PERIOD);
@@ -253,9 +254,9 @@ public class Parser {
 	/**
 	 * BaseRef ::= this | id ([ Expression])?
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Reference parseBaseRef() throws IOException {
+	private Reference parseBaseRef() throws ParsingException, ScanningException {
 		
 		switch(peek(1).type) {
 			case THIS:
@@ -289,9 +290,9 @@ public class Parser {
 	 *	 | if (Expression) Statement (else Statement)?
 	 *	 | while (Expression) Statement
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Statement parseStatement() throws IOException {
+	private Statement parseStatement() throws ParsingException, ScanningException {
 		
 		switch(peek(1).type) {
 		
@@ -391,9 +392,9 @@ public class Parser {
 	 *   | num | true | false
 	 *   | new (id() | int [ Expression ] | id [ Expression ] )
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Expression parseSingleExpression() throws IOException {
+	private Expression parseSingleExpression() throws ParsingException, ScanningException {
 	
 		Expression e = null;
 		switch(peek(1).type) {
@@ -430,7 +431,7 @@ public class Parser {
 					Operator o = new Operator(accept(peek(1).type), null);
 					e = new UnaryExpr(o, parseSingleExpression(), null);
 				} 
-				else throw new IOException();
+				else throw new ParsingException();
 				break;
 			}
 				
@@ -487,7 +488,7 @@ public class Parser {
 			}
 				
 			default:
-				throw new IOException();
+				throw new ParsingException();
 		}
 		
 		return e;
@@ -497,9 +498,9 @@ public class Parser {
 	 * Disjunction & Initial Call:
 	 * Expression ::= Expression binop Expression
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Expression parseExpression() throws IOException {
+	private Expression parseExpression() throws ParsingException, ScanningException {
 		
 		Expression e = parseCExpression();
 		while(peek(1).spelling.equals("||")) {
@@ -513,9 +514,9 @@ public class Parser {
 	/**
 	 * Conjunction
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Expression parseCExpression() throws IOException {
+	private Expression parseCExpression() throws ParsingException, ScanningException {
 
 		Expression e = parseEExpression();
 		while(peek(1).spelling.equals("&&")) {
@@ -529,9 +530,9 @@ public class Parser {
 	/**
 	 * Equality
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Expression parseEExpression() throws IOException {
+	private Expression parseEExpression() throws ParsingException, ScanningException {
 		
 		Expression e = parseRExpression();
 		while(peek(1).spelling.equals("==") || peek(1).spelling.equals("!=")) {
@@ -545,9 +546,9 @@ public class Parser {
 	/**
 	 * Relational
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Expression parseRExpression() throws IOException {
+	private Expression parseRExpression() throws ParsingException, ScanningException {
 		
 		Expression e = parseAExpression();
 		while(peek(1).spelling.equals("<") || peek(1).spelling.equals("<=")
@@ -562,9 +563,9 @@ public class Parser {
 	/**
 	 * Additive
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Expression parseAExpression() throws IOException {
+	private Expression parseAExpression() throws ParsingException, ScanningException {
 		
 		Expression e = parseMExpression();
 		while(peek(1).spelling.equals("+") || peek(1).spelling.equals("-")) {
@@ -578,9 +579,9 @@ public class Parser {
 	/**
 	 * Multiplicative
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Expression parseMExpression() throws IOException {
+	private Expression parseMExpression() throws ParsingException, ScanningException {
 		
 		Expression e = parseSingleExpression();
 		while(peek(1).spelling.equals("*") || peek(1).spelling.equals("/")) {
@@ -594,9 +595,9 @@ public class Parser {
 	/**
 	 * Sees what the next token is, caching the result.
 	 * @return
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Token peek(int lookahead) throws IOException {
+	private Token peek(int lookahead) throws ScanningException {
 		
 		// Cache tokens
 		while(stream.size() < lookahead) {
@@ -610,12 +611,12 @@ public class Parser {
 	
 	/**
 	 * Consumes token or throws exception.
-	 * @throws IOException
+	 * @throws ScanningException
 	 */
-	private Token accept(Token.TYPE type) throws IOException {
+	private Token accept(Token.TYPE type) throws ParsingException, ScanningException {
 		Token next = peek(1);
 		if(next.type == type) stream.poll();
-		else throw new IOException();
+		else throw new ParsingException(next);
 		
 		return next;
 	}

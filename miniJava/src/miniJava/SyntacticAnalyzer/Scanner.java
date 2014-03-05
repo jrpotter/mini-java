@@ -2,8 +2,12 @@ package miniJava.SyntacticAnalyzer;
 
 import java.io.*;
 
+import miniJava.SyntacticAnalyzer.Errors.ScanningException;
+
 public class Scanner {
 	
+	private int col = 1;
+	private int line = 1;
 	private BufferedReader input;
 	
     public Scanner(BufferedReader input) {
@@ -15,7 +19,7 @@ public class Scanner {
      * @return
      * @throws IOException
      */
-    public Token scan() throws IOException {
+    public Token scan() throws ScanningException {
 
     	String attr = "";
        	Token token = null;
@@ -23,7 +27,7 @@ public class Scanner {
     	while(token == null) {
     		
     		// Check for EOF
-        	int c = input.read();
+        	int c = read();
         	if(c == -1) return new Token("", Token.TYPE.EOT);
         	
         	// Setup
@@ -37,18 +41,18 @@ public class Scanner {
 	    			break;
 	    			
 		    	case '+':
-		    		if(peek('+')) throw new IOException();
+		    		if(peek('+')) throw new ScanningException(col, line);
 		    		token = new Token(attr, Token.TYPE.BINOP);
 		    		break;
 		    	
 		    	case '-':
-		    		if(peek('-')) throw new IOException();
+		    		if(peek('-')) throw new ScanningException(col, line);
 		    		token = new Token(attr, Token.TYPE.BINOP);
 		    		break;
 		    		
 	    		// Check for comment
 		    	case '/':
-		    		if(peek('*')) { input.read(); readComment(); attr = ""; }
+		    		if(peek('*')) { read(); readComment(); attr = ""; }
 		    		else if(peek('/')) { readLine(); attr = ""; }
 		    		else token = new Token(attr, Token.TYPE.BINOP);
 		    		break;
@@ -56,7 +60,7 @@ public class Scanner {
 	    		// Check for c or c=
 		    	case '>':
 		    	case '<':
-		    		if(peek('=')) attr += (char) input.read();
+		    		if(peek('=')) attr += (char) read();
 		    		token = new Token(attr, Token.TYPE.BINOP);
 		    		break;
 		    		
@@ -64,7 +68,7 @@ public class Scanner {
 		    	case '!':
 		    		if(!peek('=')) token = new Token(attr, Token.TYPE.UNOP);
 		    		else { 
-		    			attr += (char) input.read();
+		    			attr += (char) read();
 		    			token = new Token(attr, Token.TYPE.BINOP);
 		    		} 
 		    		break;
@@ -72,9 +76,9 @@ public class Scanner {
 	    		// Check for && or ||
 	    		case '&':
 	    		case '|':
-	    			if(!peek((char) c)) throw new IOException();
+	    			if(!peek((char) c)) throw new ScanningException(col, line);
 	    			else {
-	    				attr += (char) input.read();
+	    				attr += (char) read();
 	    				token = new Token(attr, Token.TYPE.BINOP);
 	    			}
 		    		break;
@@ -83,7 +87,7 @@ public class Scanner {
 	    		case '=':
 	    			if(!peek('=')) token = new Token(attr, Token.TYPE.EQUALS);
 	    			else {
-	    				attr += (char) input.read();
+	    				attr += (char) read();
 	    				token = new Token(attr, Token.TYPE.BINOP);
 	    			}
 	    			break;
@@ -129,7 +133,7 @@ public class Scanner {
 	    			// Identifier or Keyword
 	    			if(isAlpha((char) c)) {
 	    				for(char n = peek(); isAlpha(n) || isDigit(n) || n == '_';) {
-	    					attr += (char) input.read();
+	    					attr += (char) read();
 	    					n = peek();
 	    				}
 	    				
@@ -143,7 +147,7 @@ public class Scanner {
 	    			// Number
 	    			else if(isDigit((char) c)) {
 	    				for(char n = peek(); isDigit(n);) {
-	    					attr += (char) input.read();
+	    					attr += (char) read();
 	    					n = peek();
 	    				}
 	    				
@@ -156,7 +160,7 @@ public class Scanner {
 	    			}
 	    			
 	    			// Unrecognized Character
-	    			else throw new IOException();
+	    			else throw new ScanningException(col, line);;
 	    			
 	    			break;
 	    	}
@@ -171,12 +175,16 @@ public class Scanner {
      * @return
      * @throws IOException
      */
-    private char peek() throws IOException {
-    	input.mark(1);
-    	int next = input.read();
-    	input.reset();
-    	
-    	return next == -1 ? '\0' : (char) next;
+    private char peek() throws ScanningException {
+    	try {
+	    	input.mark(1);
+	    	int next = input.read();
+	    	input.reset();
+	    	
+	    	return next == -1 ? '\0' : (char) next;
+    	} catch(IOException e) {
+    		throw new ScanningException(col, line);
+    	}
     }
     
     
@@ -186,12 +194,34 @@ public class Scanner {
      * @return
      * @throws IOException
      */
-    private boolean peek(char c) throws IOException {
-    	input.mark(1);
-    	int next = input.read();
-    	input.reset();
-    	
-    	return c == next;
+    private boolean peek(char c) throws ScanningException {
+    	try {
+	    	input.mark(1);
+	    	int next = input.read();
+	    	input.reset();
+	    	
+	    	return c == next;
+    	} catch(IOException e) {
+    		throw new ScanningException(col, line);
+    	}
+    }
+    
+    
+    /**
+     * Alternative reading that keeps track of position.
+     * @return
+     * @throws IOException
+     */
+    private int read() throws ScanningException {	
+    	try {
+	    	int next = input.read();
+	    	if(next != '\n' && next != '\r') col += 1;
+	    	else { col = 1; line += 1; }
+	    	
+	    	return next;
+    	} catch(IOException e) {
+    		throw new ScanningException(col, line);
+    	}
     }
     
     
@@ -199,15 +229,19 @@ public class Scanner {
      * Consumes input until an end of comment has been reached.
      * @throws IOException
      */
-    private void readComment() throws IOException {
-    	char prev = '\0', current = '\0';
-    	while(prev != '*' || current != '/') {	
-    		
-    		prev = current;
-
-    		int next = input.read();
-    		if(next == -1) throw new IOException();
-    		else current = (char) next;
+    private void readComment() throws ScanningException {
+    	try {
+	    	char prev = '\0', current = '\0';
+	    	while(prev != '*' || current != '/') {	
+	    		
+	    		prev = current;
+	
+	    		int next = input.read();
+	    		if(next == -1) throw new IOException();
+	    		else current = (char) next;
+	    	}
+    	} catch(IOException e) {
+    		throw new ScanningException(col, line);
     	}
     }
     
@@ -216,8 +250,12 @@ public class Scanner {
      * Consumes input until the end of line is reached
      * @throws IOException
      */
-    private void readLine() throws IOException {
-    	for(int n = 0; n != '\n' && n != '\r' && n != -1; n = input.read()) {}
+    private void readLine() throws ScanningException {
+    	try {
+    		for(int n = 0; n != '\n' && n != '\r' && n != -1; n = input.read()) {}
+    	} catch(IOException e) {
+    		throw new ScanningException(col, line);
+    	}
     }
     
     
