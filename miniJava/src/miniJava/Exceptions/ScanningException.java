@@ -1,4 +1,4 @@
-package miniJava.SyntacticAnalyzer.Errors;
+package miniJava.Exceptions;
 
 public class ScanningException extends Exception {
 	

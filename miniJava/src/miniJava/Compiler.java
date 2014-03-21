@@ -3,9 +3,11 @@ package miniJava;
 import java.io.*;
 
 import miniJava.SyntacticAnalyzer.*;
-import miniJava.SyntacticAnalyzer.Errors.*;
-import miniJava.AbstractSyntaxTrees.*;
+import miniJava.AbstractSyntaxTrees.ASTDisplay;
 import miniJava.AbstractSyntaxTrees.Package;
+import miniJava.ContextualAnalyzer.Analyzer;
+import miniJava.ContextualAnalyzer.Reporter;
+import miniJava.Exceptions.*;
 
 public class Compiler {
 	
@@ -26,18 +28,24 @@ public class Compiler {
 			Package p = parser.parse();
 			
 			// Display
-			ASTDisplay display = new ASTDisplay();
-			display.showTree(p);
+			// ASTDisplay display = new ASTDisplay();
+			// display.showTree(p);
+			
+			// Identification/Type Checking
+			Analyzer analyzer = new Analyzer();
+			analyzer.visitPackage(p, null);
+			if(Reporter.error) System.exit(rc);
+			
 			System.exit(0);
 			
 		} catch(FileNotFoundException e) {
-			System.out.println(e.getMessage());
+			System.out.println("***" + e.getMessage());
 		} catch(IOException e) {
-			System.out.println(e.getMessage());
+			System.out.println("***" + e.getMessage());
 		}catch(ScanningException e) {
-			System.out.println(e.getMessage());
+			System.out.println("***" + e.getMessage());
 		} catch(ParsingException e) {
-			System.out.println(e.getMessage());
+			System.out.println("***" + e.getMessage());
 		}
 		
 		System.exit(rc);

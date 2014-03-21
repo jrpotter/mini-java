@@ -69,10 +69,12 @@ public class Token {
      }
 	 
 	public final TYPE type;
+	public SourcePosition posn;
 	public final String spelling;
 		
 	public Token(String spelling, TYPE type) {
 		this.type = type;
+		this.posn = null;
 		this.spelling = spelling;
 	}
 }

@@ -9,4 +9,9 @@ public class SourcePosition {
 		this.col = col;
 		this.line = line;
 	}
+	
+	@Override
+	public String toString() {
+		return "(Line: " + line + ", Column: " + col + ")";
+	}
 }

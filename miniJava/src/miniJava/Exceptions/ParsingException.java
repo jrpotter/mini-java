@@ -1,4 +1,4 @@
-package miniJava.SyntacticAnalyzer.Errors;
+package miniJava.Exceptions;
 
 import miniJava.SyntacticAnalyzer.Token;
 

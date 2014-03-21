@@ -15,6 +15,15 @@ public abstract class Declaration extends AST {
 		this.type = type;
 	}
 	
+	@Override
+	public String toString() {
+		if(posn != null) {
+			return this.name + "(Line: " + posn.line + ", Column: " + posn.col + ")";
+		} else {
+			return super.toString();
+		}
+	}
+	
 	public String name;
 	public Type type;
 }

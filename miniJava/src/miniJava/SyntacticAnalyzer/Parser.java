@@ -4,7 +4,7 @@ import java.util.LinkedList;
 
 import miniJava.AbstractSyntaxTrees.*;
 import miniJava.AbstractSyntaxTrees.Package;
-import miniJava.SyntacticAnalyzer.Errors.*;
+import miniJava.Exceptions.*;
 
 public class Parser {
 	
@@ -28,7 +28,7 @@ public class Parser {
 		}
 		
 		accept(Token.TYPE.EOT);
-		return new Package(decls, null);
+		return new Package(decls, new SourcePosition(0, 0));
 	}
 			
 	/**
@@ -42,7 +42,7 @@ public class Parser {
 	private ClassDecl parseClassDeclaration() throws ParsingException, ScanningException {
 		
 		// Class Header
-		accept(Token.TYPE.CLASS);
+		Token classToken = accept(Token.TYPE.CLASS);
 		String cn = accept(Token.TYPE.ID).spelling;
 		accept(Token.TYPE.LBRACKET);
 		
@@ -54,7 +54,7 @@ public class Parser {
 		while(peek(1).type != Token.TYPE.RBRACKET) {
 			Declarators d = parseDeclarators();
 			String name = accept(Token.TYPE.ID).spelling;
-			FieldDecl f = new FieldDecl(d.isPrivate, d.isStatic, d.mt, name, null);
+			FieldDecl f = new FieldDecl(d.isPrivate, d.isStatic, d.mt, name, d.posn);
 			
 			// Field Declarations
 			if(peek(1).type == Token.TYPE.SEMICOLON) {
@@ -67,7 +67,7 @@ public class Parser {
 		}
 		
 		accept(Token.TYPE.RBRACKET);
-		return new ClassDecl(cn, fdl, mdl, null);
+		return new ClassDecl(cn, fdl, mdl, classToken.posn);
 	}
 	
 	/**
@@ -78,23 +78,33 @@ public class Parser {
 	private Declarators parseDeclarators() throws ParsingException, ScanningException {
 		
 		// Visibility
+		SourcePosition start = null;
 		boolean isPrivate = false;
+		
 		if(peek(1).type == Token.TYPE.PUBLIC) {
-			accept(Token.TYPE.PUBLIC);
+			start = accept(Token.TYPE.PUBLIC).posn;
 		} else if(peek(1).type == Token.TYPE.PRIVATE) {
 			isPrivate = true;
-			accept(Token.TYPE.PRIVATE); 
+			start = accept(Token.TYPE.PRIVATE).posn; 
 		}
 		
 		// Class Methods
 		boolean isStatic = false;
 		if(peek(1).type == Token.TYPE.STATIC) {
 			isStatic = true;
-			accept(Token.TYPE.STATIC);
+			if(start == null) {
+				start = accept(Token.TYPE.STATIC).posn;
+			} else {
+				accept(Token.TYPE.STATIC);
+			}
 		}
 		
 		Type t = parseType();
-		return new Declarators(isPrivate, isStatic, t);
+		if(start == null) {
+			start = t.posn;
+		}
+		
+		return new Declarators(isPrivate, isStatic, t, start);
 	}
 
 	/**
@@ -134,7 +144,7 @@ public class Parser {
 		}
 		
 		accept(Token.TYPE.RBRACKET);
-		return new MethodDecl(f, pdl, stl, re, null);
+		return new MethodDecl(f, pdl, stl, re, f.posn);
 	}
 	
 	/**
@@ -144,38 +154,40 @@ public class Parser {
 	 */
 	private Type parseType() throws ParsingException, ScanningException {
 		
+		SourcePosition posn = null;
+		
 		switch(peek(1).type) {
 		
 			case BOOLEAN:
-				accept(Token.TYPE.BOOLEAN);
-				return new BaseType(TypeKind.BOOLEAN, null);
+				posn = accept(Token.TYPE.BOOLEAN).posn;
+				return new BaseType(TypeKind.BOOLEAN, posn);
 				
 			case VOID:
-				accept(Token.TYPE.VOID);
-				return new BaseType(TypeKind.VOID, null);
+				posn = accept(Token.TYPE.VOID).posn;
+				return new BaseType(TypeKind.VOID, posn);
 				
 			case INT: {
-				accept(Token.TYPE.INT);
-				BaseType b = new BaseType(TypeKind.INT, null);
+				posn = accept(Token.TYPE.INT).posn;
+				BaseType b = new BaseType(TypeKind.INT, posn);
 				
 				if(peek(1).type == Token.TYPE.LSQUARE) {
 					accept(Token.TYPE.LSQUARE);
 					accept(Token.TYPE.RSQUARE);
-					return new ArrayType(b, null);
+					return new ArrayType(b, posn);
 				}
 				
 				return b;
 			}
 				
 			case ID: {
-				String cn = accept(peek(1).type).spelling;
-				Identifier i = new Identifier(cn, null);
-				ClassType c = new ClassType(i, null);
+				Token id = accept(peek(1).type);
+				Identifier i = new Identifier(id.spelling, id.posn);
+				ClassType c = new ClassType(i, id.posn);
 				
 				if(peek(1).type == Token.TYPE.LSQUARE) {
 					accept(Token.TYPE.LSQUARE);
 					accept(Token.TYPE.RSQUARE);
-					return new ArrayType(c, null);
+					return new ArrayType(c, id.posn);
 				}
 				
 				return c;
@@ -197,15 +209,15 @@ public class Parser {
 		
 		// First Parameter
 		Type t = parseType();
-		String name = accept(Token.TYPE.ID).spelling;
-		decls.add(new ParameterDecl(t, name, null));
+		Token id = accept(Token.TYPE.ID);
+		decls.add(new ParameterDecl(t, id.spelling, id.posn));
 		
 		// Remainder of List
 		while(peek(1).type == Token.TYPE.COMMA) {
 			accept(Token.TYPE.COMMA);
-			t = parseType();
-			name = accept(Token.TYPE.ID).spelling;
-			decls.add(new ParameterDecl(t, name, null));
+			Type nextType = parseType();
+			Token nextId = accept(Token.TYPE.ID);
+			decls.add(new ParameterDecl(nextType, nextId.spelling, nextId.posn));
 		}
 		
 		return decls;
@@ -236,15 +248,15 @@ public class Parser {
 		Reference r = parseBaseRef();
 		while(peek(1).type == Token.TYPE.PERIOD) {
 			accept(Token.TYPE.PERIOD);
-			String name = accept(Token.TYPE.ID).spelling;
-			Identifier id = new Identifier(name, null);
-			r = new QualifiedRef(r, id, null);
+			Token tokenId = accept(Token.TYPE.ID);
+			Identifier id = new Identifier(tokenId.spelling, tokenId.posn);
+			r = new QualifiedRef(r, id, tokenId.posn);
 			
 			if(peek(1).type == Token.TYPE.LSQUARE) {
 				accept(Token.TYPE.LSQUARE);
 				Expression e = parseExpression();
 				accept(Token.TYPE.RSQUARE);
-				r = new IndexedRef(r, e, null);
+				r = new IndexedRef(r, e, tokenId.posn);
 			}
 		}		
 		
@@ -259,21 +271,22 @@ public class Parser {
 	private Reference parseBaseRef() throws ParsingException, ScanningException {
 		
 		switch(peek(1).type) {
-			case THIS:
-				accept(Token.TYPE.THIS);
-				return new ThisRef(null);
+			case THIS: {
+				Token thisToken = accept(Token.TYPE.THIS);
+				return new ThisRef(thisToken.posn);
+			}
 				
 			// id ([ Expression])?
 			default: {
-				String id = accept(Token.TYPE.ID).spelling;
-				Identifier i = new Identifier(id, null);
-				IdRef r = new IdRef(i, null);
+				Token id = accept(Token.TYPE.ID);
+				Identifier i = new Identifier(id.spelling, id.posn);
+				IdRef r = new IdRef(i, id.posn);
 				
 				if(peek(1).type == Token.TYPE.LSQUARE) {
 					accept(Token.TYPE.LSQUARE);
 					Expression e = parseExpression();
 					accept(Token.TYPE.RSQUARE);
-					return new IndexedRef(r, e, null);
+					return new IndexedRef(r, e, id.posn);
 				}
 				
 				return r;
@@ -298,19 +311,19 @@ public class Parser {
 		
 			// { Statement* }
 			case LBRACKET: {
-				accept(Token.TYPE.LBRACKET);
+				Token leftToken = accept(Token.TYPE.LBRACKET);
 				StatementList stl = new StatementList();
 				while(peek(1).type != Token.TYPE.RBRACKET) {
 					stl.add(parseStatement());
 				}
 				accept(Token.TYPE.RBRACKET);
 				
-				return new BlockStmt(stl, null);
+				return new BlockStmt(stl, leftToken.posn);
 			}
 				
 			// if (Expression) Statement (else Statement)?
 			case IF: {
-				accept(Token.TYPE.IF);
+				Token ifToken = accept(Token.TYPE.IF);
 				accept(Token.TYPE.LPAREN);
 				Expression e = parseExpression();
 				accept(Token.TYPE.RPAREN);
@@ -318,21 +331,21 @@ public class Parser {
 				if(peek(1).type == Token.TYPE.ELSE) {
 					accept(Token.TYPE.ELSE);
 					Statement s2 = parseStatement();
-					return new IfStmt(e, s1, s2, null);
+					return new IfStmt(e, s1, s2, ifToken.posn);
 				}
 				
-				return new IfStmt(e, s1, null);
+				return new IfStmt(e, s1, ifToken.posn);
 			}
 				
 			// while (Expression) Statement
 			case WHILE: {
-				accept(Token.TYPE.WHILE);
+				Token whileToken = accept(Token.TYPE.WHILE);
 				accept(Token.TYPE.LPAREN);
 				Expression e = parseExpression();
 				accept(Token.TYPE.RPAREN);
 				Statement s = parseStatement();
 				
-				return new WhileStmt(e, s, null);
+				return new WhileStmt(e, s, whileToken.posn);
 			}
 				
 			// Type id = Expression ;
@@ -343,13 +356,13 @@ public class Parser {
 				||(peek(2).type == Token.TYPE.LSQUARE && peek(3).type == Token.TYPE.RSQUARE)) {
 					Type t = parseType();
 					String name = accept(Token.TYPE.ID).spelling;
-					VarDecl v = new VarDecl(t, name, null);
+					VarDecl v = new VarDecl(t, name, t.posn);
 					
 					accept(Token.TYPE.EQUALS);
 					Expression e = parseExpression();
 					accept(Token.TYPE.SEMICOLON);
 					
-					return new VarDeclStmt(v, e, null);
+					return new VarDeclStmt(v, e, t.posn);
 				}
 				
 				/* Fall Through */
@@ -367,14 +380,14 @@ public class Parser {
 						e = parseArgumentList();
 					}
 					accept(Token.TYPE.RPAREN);
-					s = new CallStmt(r, e, null);
+					s = new CallStmt(r, e, r.posn);
 				} 
 				
 				// Reference = Expression ;
 				else {
 					accept(Token.TYPE.EQUALS);
 					Expression e = parseExpression();
-					s = new AssignStmt(r, e, null);
+					s = new AssignStmt(r, e, r.posn);
 				}
 				
 				accept(Token.TYPE.SEMICOLON);
@@ -401,18 +414,18 @@ public class Parser {
 		
 			// num
 			case NUM: {
-				String number = accept(Token.TYPE.NUM).spelling;
-				IntLiteral i = new IntLiteral(number, null);
-				e = new LiteralExpr(i, null);
+				Token number = accept(Token.TYPE.NUM);
+				IntLiteral i = new IntLiteral(number.spelling, number.posn);
+				e = new LiteralExpr(i, number.posn);
 				break;
 			}
 			
 			// true | false
 			case TRUE:
 			case FALSE: {
-				String bool = accept(peek(1).type).spelling;
-				BooleanLiteral b = new BooleanLiteral(bool, null);
-				e = new LiteralExpr(b, null);
+				Token bool = accept(peek(1).type);
+				BooleanLiteral b = new BooleanLiteral(bool.spelling, bool.posn);
+				e = new LiteralExpr(b, bool.posn);
 				break;
 			}
 				
@@ -428,8 +441,9 @@ public class Parser {
 			case UNOP:
 			case BINOP: {
 				if(peek(1).spelling.equals("!") || peek(1).spelling.equals("-")) {
-					Operator o = new Operator(accept(peek(1).type), null);
-					e = new UnaryExpr(o, parseSingleExpression(), null);
+					Token opToken = accept(peek(1).type);
+					Operator o = new Operator(opToken, opToken.posn);
+					e = new UnaryExpr(o, parseSingleExpression(), opToken.posn);
 				} 
 				else throw new ParsingException();
 				break;
@@ -437,7 +451,7 @@ public class Parser {
 				
 			// new ( int [ Expression ]  | id ( ) | id [ Expression ] )
 			case NEW: {
-				accept(Token.TYPE.NEW);
+				Token newToken = accept(Token.TYPE.NEW);
 				
 				if(peek(1).type == Token.TYPE.INT) {
 					accept(Token.TYPE.INT);
@@ -445,24 +459,24 @@ public class Parser {
 					Expression e2 = parseExpression();
 					accept(Token.TYPE.RSQUARE);
 					
-					BaseType b = new BaseType(TypeKind.INT, null);
-					e = new NewArrayExpr(b, e2, null);
+					BaseType b = new BaseType(TypeKind.INT, newToken.posn);
+					e = new NewArrayExpr(b, e2, newToken.posn);
 				}
 				
 				else {
-					String cn = accept(Token.TYPE.ID).spelling;
-					Identifier i = new Identifier(cn, null);
-					ClassType c = new ClassType(i, null);
+					Token id = accept(Token.TYPE.ID);
+					Identifier i = new Identifier(id.spelling, id.posn);
+					ClassType c = new ClassType(i, id.posn);
 					
 					if(peek(1).type == Token.TYPE.LPAREN){
 						accept(Token.TYPE.LPAREN);
 						accept(Token.TYPE.RPAREN);
-						e = new NewObjectExpr(c, null);
+						e = new NewObjectExpr(c, id.posn);
 					} else {
 						accept(Token.TYPE.LSQUARE);
 						Expression e2 = parseExpression();
 						accept(Token.TYPE.RSQUARE);
-						e = new NewArrayExpr(c, e2, null);
+						e = new NewArrayExpr(c, e2, id.posn);
 					}
 				}
 				
@@ -479,9 +493,9 @@ public class Parser {
 						el = parseArgumentList();
 					}
 					accept(Token.TYPE.RPAREN);
-					e = new CallExpr(r, el, null);
+					e = new CallExpr(r, el, r.posn);
 				} else {
-					e = new RefExpr(r, null);
+					e = new RefExpr(r, r.posn);
 				}
 				
 				break;
@@ -504,8 +518,9 @@ public class Parser {
 		
 		Expression e = parseCExpression();
 		while(peek(1).spelling.equals("||")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseCExpression(), null);
+			Token opToken = accept(Token.TYPE.BINOP);
+			Operator o = new Operator(opToken, opToken.posn);
+			e = new BinaryExpr(o, e, parseCExpression(), e.posn);
 		}
 		
 		return e;
@@ -520,8 +535,9 @@ public class Parser {
 
 		Expression e = parseEExpression();
 		while(peek(1).spelling.equals("&&")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseEExpression(), null);
+			Token opToken = accept(Token.TYPE.BINOP);
+			Operator o = new Operator(opToken, opToken.posn);
+			e = new BinaryExpr(o, e, parseEExpression(), e.posn);
 		}
 		
 		return e;
@@ -536,8 +552,9 @@ public class Parser {
 		
 		Expression e = parseRExpression();
 		while(peek(1).spelling.equals("==") || peek(1).spelling.equals("!=")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseRExpression(), null);
+			Token opToken = accept(Token.TYPE.BINOP);
+			Operator o = new Operator(opToken, opToken.posn);
+			e = new BinaryExpr(o, e, parseRExpression(), e.posn);
 		}
 		
 		return e;
@@ -553,8 +570,9 @@ public class Parser {
 		Expression e = parseAExpression();
 		while(peek(1).spelling.equals("<") || peek(1).spelling.equals("<=")
 		   || peek(1).spelling.equals(">") || peek(1).spelling.equals(">=")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseAExpression(), null);
+			Token opToken = accept(Token.TYPE.BINOP);
+			Operator o = new Operator(opToken, opToken.posn);
+			e = new BinaryExpr(o, e, parseAExpression(), e.posn);
 		}
 		
 		return e;
@@ -569,8 +587,9 @@ public class Parser {
 		
 		Expression e = parseMExpression();
 		while(peek(1).spelling.equals("+") || peek(1).spelling.equals("-")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseMExpression(), null);
+			Token opToken = accept(Token.TYPE.BINOP);
+			Operator o = new Operator(opToken, opToken.posn);
+			e = new BinaryExpr(o, e, parseMExpression(), e.posn);
 		}
 		
 		return e;
@@ -585,8 +604,9 @@ public class Parser {
 		
 		Expression e = parseSingleExpression();
 		while(peek(1).spelling.equals("*") || peek(1).spelling.equals("/")) {
-			Operator o = new Operator(accept(Token.TYPE.BINOP), null);
-			e = new BinaryExpr(o, e, parseSingleExpression(), null);
+			Token opToken = accept(Token.TYPE.BINOP);
+			Operator o = new Operator(opToken, opToken.posn);
+			e = new BinaryExpr(o, e, parseSingleExpression(), e.posn);
 		}
 		
 		return e;

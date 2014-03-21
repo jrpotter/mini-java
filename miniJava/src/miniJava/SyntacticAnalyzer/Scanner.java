@@ -1,8 +1,7 @@
 package miniJava.SyntacticAnalyzer;
 
 import java.io.*;
-
-import miniJava.SyntacticAnalyzer.Errors.ScanningException;
+import miniJava.Exceptions.*;
 
 public class Scanner {
 	
@@ -12,6 +11,11 @@ public class Scanner {
 	
     public Scanner(BufferedReader input) {
     	this.input = input;
+    }
+    
+    public Scanner(String input) {
+    	StringReader reader = new StringReader(input);
+    	this.input = new BufferedReader(reader);
     }
     
     /**
@@ -132,7 +136,7 @@ public class Scanner {
 	    			
 	    			// Identifier or Keyword
 	    			if(isAlpha((char) c)) {
-	    				for(char n = peek(); isAlpha(n) || isDigit(n) || n == '_';) {
+	    				for(char n = peek(); isAlpha(n) || isDigit(n);) {
 	    					attr += (char) read();
 	    					n = peek();
 	    				}
@@ -166,6 +170,7 @@ public class Scanner {
 	    	}
     	}
 
+    	token.posn = new SourcePosition(line, col - token.spelling.length());
     	return token;
     }
     
@@ -216,7 +221,10 @@ public class Scanner {
     	try {
 	    	int next = input.read();
 	    	if(next != '\n' && next != '\r') col += 1;
-	    	else { col = 1; line += 1; }
+	    	else { 
+	    		col = 1; line += 1;
+	    		if(peek('\r') || peek('\n')) next = input.read();
+	    	}
 	    	
 	    	return next;
     	} catch(IOException e) {
@@ -230,18 +238,14 @@ public class Scanner {
      * @throws IOException
      */
     private void readComment() throws ScanningException {
-    	try {
-	    	char prev = '\0', current = '\0';
-	    	while(prev != '*' || current != '/') {	
-	    		
-	    		prev = current;
-	
-	    		int next = input.read();
-	    		if(next == -1) throw new IOException();
-	    		else current = (char) next;
-	    	}
-    	} catch(IOException e) {
-    		throw new ScanningException(col, line);
+    	char prev = '\0', current = '\0';
+    	while(prev != '*' || current != '/') {	
+    		
+    		prev = current;
+
+    		int next = read();
+    		if(next == -1) throw new ScanningException(col, line);
+    		else current = (char) next;
     	}
     }
     
@@ -251,11 +255,7 @@ public class Scanner {
      * @throws IOException
      */
     private void readLine() throws ScanningException {
-    	try {
-    		for(int n = 0; n != '\n' && n != '\r' && n != -1; n = input.read()) {}
-    	} catch(IOException e) {
-    		throw new ScanningException(col, line);
-    	}
+    	for(int n = 0; n != '\n' && n != '\r' && n != -1; n = read()) {}
     }
     
     
@@ -266,7 +266,8 @@ public class Scanner {
      */
     private boolean isAlpha(char c) {
     	return (c >= 'a' && c <= 'z')
-    		|| (c >= 'A' && c <= 'Z');
+    		|| (c >= 'A' && c <= 'Z')
+    		|| c == '_';
     }
     
     
