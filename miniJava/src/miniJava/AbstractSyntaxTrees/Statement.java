@@ -5,12 +5,12 @@
  */
 package miniJava.AbstractSyntaxTrees;
 
-import  miniJava.SyntacticAnalyzer.SourcePosition;
+import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class Statement extends AST {
 
-  public Statement(SourcePosition posn) {
-    super (posn);
-  }
+	public Statement(SourcePosition posn) {
+		super(posn);
+	}
 
 }

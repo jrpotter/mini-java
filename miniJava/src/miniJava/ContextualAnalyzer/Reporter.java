@@ -3,120 +3,168 @@ package miniJava.ContextualAnalyzer;
 import miniJava.AbstractSyntaxTrees.*;
 
 enum ErrorType {
-	VAR_COND_ONLY, 		
-	MISSING_DECL,
-	UNIDENTIFIED,
-	REDEFINITION,
-	INVALID_PARAM_COUNT,
-	INVALID_INDEX,
-	TYPE_MISMATCH,
-	UNIDENTIFIED_TYPE,
-	TYPE_CLASS_MISMATCH,
-	TYPE_ARRAY_MISMATCH,
-	NO_RETURN_EXPRESSION;
+	THIS,
+	NONFUNCTION_CALL,
+	UNDEFINED,
+	STATIC, 
+	VISIBILITY, 
+	NO_RETURN, 
+	TYPE_MISMATCH, 
+	REDEFINITION, 
+	MAIN_UNDECLARED, 
+	INVALID_PARAM_COUNT, 
+	MULTIPLE_MAIN, 
+	UNDECLARED_TYPE, 
+	SINGLE_VARCOND, 
+	INVALID_INDEX
 }
 
 public class Reporter {
-	
+
 	public static boolean error = false;
-	
+
 	/**
-	 * Prints out to console correct error message.
-	 * @param type
-	 * @param ast
+	 * Convenience function for getting type names.
+	 * 
+	 * @param t
+	 * @return
 	 */
-	public static void report(ErrorType type, AST ast) {
-		error = true;
-		switch(type) {
+	private static String getTypeName(Type t) {
+		if (t instanceof ClassType) {
+			ClassType ct = (ClassType) t;
+			return ct.className.spelling;
+		} else if (t instanceof ArrayType) {
+			ArrayType at = (ArrayType) t;
+			return getTypeName(at.eltType);
+		}
+
+		return t.typeKind.toString();
+	}
+
+	/**
+	 * Convenience method for formatting error message.
+	 * 
+	 * @param message
+	 */
+	private static void emit(String message) {
+		System.out.println("***" + message);
+	}
+
+	/**
+	 * Convenience function for managing all error types.
+	 * 
+	 * @param type
+	 * @param a1
+	 * @param a2
+	 */
+	public static void report(ErrorType type, AST a1, AST a2) {
+
+		switch (type) {
 		
-			// VarDeclStmt is only statement in conditional branch
-			case VAR_COND_ONLY: {
-				System.out.println("***Conditional statment cannot be followed by a variable declaration statement " + ast.posn);
+			// Cannot access 'this' in a static method
+			case THIS: {
+				MethodDecl md = (MethodDecl) a2;
+				emit("Cannot reference 'this' " + a1.posn + " in static method '" + md.name + "' " + md.posn);
 				break;
 			}
-			
-			// Declaration does not exist for reference
-			case MISSING_DECL: {
-				System.out.println("***Reference to a non-existant type " + ast.posn);
+		
+			// Attempting to call a non function as a function
+			case NONFUNCTION_CALL: {
+				emit("Not a valid function call at " + a1.posn);
 				break;
 			}
-			
-			// Reports when a reference could not be found
-			case UNIDENTIFIED: {
-				System.out.println("***Reference refers to a declaration that does not exist " + ast.posn);
+	
+			// Tried accessing a non-static member from a static method
+			case STATIC: {
+				MemberDecl md = (MemberDecl) a1;
+				Identifier ident = (Identifier) a2;
+				emit("'" + md.name + "' " + md.posn + " is an instance member and cannot be accessed at " + ident.posn);
 				break;
 			}
-			
+	
+			// Tried accessing a private member of a different class
+			case VISIBILITY: {
+				MemberDecl md = (MemberDecl) a1;
+				Identifier ident = (Identifier) a2;
+				emit("'" + md.name + "' " + md.posn + " is a private member and cannot be accessed at " + ident.posn);
+				break;
+			}
+	
+			// Non-void function does not have a return statement
+			case NO_RETURN: {
+				MethodDecl md = (MethodDecl) a1;
+				emit("'" + md.name + "' " + md.posn + " must have a return statement");
+				break;
+			}
+	
+			// The passed types are not the same
+			case TYPE_MISMATCH: {
+				String name1 = getTypeName((Type) a1);
+				String name2 = getTypeName((Type) a2);
+				if(a1 instanceof ArrayType) name1 += " Array";
+				if(a2 instanceof ArrayType) name2 += " Array";
+				emit("Expected type '" + name1 + "' but got '" + name2 + "' " + a2.posn);
+				break;
+			}
+	
 			// Attempting to redeclare a variable
 			case REDEFINITION: {
-				System.out.println("***Variable has already been defined earlier " + ast.posn);
+				emit("Variable at " + a1.posn + " already declared earlier at " + a2.posn);
 				break;
 			}
 			
-			// A non void function does not have a return statement
-			case NO_RETURN_EXPRESSION: {
-				System.out.println("***Non-void method does not have a return statement " + ast.posn);
+			// Identifier could not be found
+			case UNDEFINED: {
+				Identifier ident = (Identifier) a1;
+				emit("Identifier '" + ident.spelling + "' " + ident.posn + " is undeclared.");
 				break;
 			}
-			
-			// The number of parameters passed is either too few or too great
-			case INVALID_PARAM_COUNT: {
-				System.out.println("***The number of passed parameters does not equal expected count " + ast.posn);
-			}
-			
-			// The expected expression MUST return an int (such as the index of an array)
-			case INVALID_INDEX: {
-				System.out.println("***Expected an integer value as the index of an array " + ast.posn);
-				break;
-			}
-			
-			// Hmmm.....
-			case UNIDENTIFIED_TYPE: {
-				System.out.println("***Unexpected type " + ast.posn);
-				break;
-			}
-			
-			// Clear Warning
-			default:
-				break;
-		}
-	}
 	
-	/**
-	 * Type specific error reporting.
-	 * @param type
-	 * @param t1
-	 * @param t2
-	 */
-	public static void report(ErrorType type, Type t1, Type t2) {
-		error = true;
-		switch(type) {
-		
-			// Non class/array types don't match
-			case TYPE_MISMATCH: {
-				System.out.println("***Expected type " + t1.typeKind + " but got " + t2.typeKind + t2.posn);
+			// A public static void main(String[] args) method was not declared
+			case MAIN_UNDECLARED: {
+				emit("A main function was not declared");
 				break;
 			}
-			
-			// Two classes don't match
-			case TYPE_CLASS_MISMATCH: {
-				ClassType c1 = (ClassType) t1;
-				ClassType c2 = (ClassType) t2;
-				System.out.println("***Expected type " + c1.className.spelling + " but got " + c2.className.spelling + c2.posn);
+	
+			// Parameter counts of an expression/statement do not match declaration
+			case INVALID_PARAM_COUNT: {
+				MethodDecl md = (MethodDecl) a2;
+				emit("Call to '" + md.name + "' " + a2.posn + " has an invalid parameter count at " + a1.posn);
 				break;
 			}
-			
-			// Two arrays don't match
-			case TYPE_ARRAY_MISMATCH: {
-				ArrayType a1 = (ArrayType) t1;
-				ArrayType a2 = (ArrayType) t2;
-				System.out.println("***Expected array type " + a1.eltType.typeKind + " but got " + a2.eltType.typeKind + t2.posn);
+	
+			// A public static void main(String[] args) was declared more than once
+			case MULTIPLE_MAIN: {
+				emit("Main function at " + a1.posn + " already declared previously at " + a2.posn);
 				break;
 			}
-			
-			// Clear Warning
-			default:
+	
+			// A reference has been made to a non-existant type
+			case UNDECLARED_TYPE: {
+				if(a1 instanceof Type) {
+					String typeName = getTypeName((Type) a1);
+					emit("'" + typeName + "' " + a1.posn + " has not been declared previously");
+				} else {
+					emit("Identifier at " + a1.posn + " could not be identified");
+				}
+				
 				break;
+			}
+	
+			// A Variable Declaration Statement was made as the only statement of a condition
+			case SINGLE_VARCOND: {
+				emit("Conditional statment cannot be followed by a variable declaration statement exclusively " + a1.posn);
+				break;
+			}
+	
+			// An indexed expression must be of an int type
+			case INVALID_INDEX: {
+				emit("Index expression is not of type int " + a1.posn);
+				break;
+			}
 		}
+
+		error = true;
 	}
+
 }
