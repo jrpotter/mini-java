@@ -4,7 +4,11 @@ import miniJava.AbstractSyntaxTrees.*;
 
 enum ErrorType {
 	THIS,
+	VOID_TYPE,
+	CLASS_IDENTIFER,
+	VARDECL_USED,
 	NONFUNCTION_CALL,
+	FUNCTION_ASSIGNMENT,
 	UNDEFINED,
 	STATIC, 
 	VISIBILITY, 
@@ -67,10 +71,28 @@ public class Reporter {
 				emit("Cannot reference 'this' " + a1.posn + " in static method '" + md.name + "' " + md.posn);
 				break;
 			}
+			
+			// Can't use a class as an identifier solely
+			case CLASS_IDENTIFER: {
+				emit("Cannot use class identifier by outside of a qualified reference at " + a1.posn);
+				break;
+			}
+			
+			// Cannot have a parameter of type void
+			case VOID_TYPE: {
+				emit("Cannot have a parameter of type void at " + a1.posn);
+				break;
+			}
 		
 			// Attempting to call a non function as a function
 			case NONFUNCTION_CALL: {
 				emit("Not a valid function call at " + a1.posn);
+				break;
+			}
+			
+			// Cannot assign a value to a function
+			case FUNCTION_ASSIGNMENT: {
+				emit("Cannot assign a value to a function at " + a1.posn);
 				break;
 			}
 	
@@ -160,6 +182,12 @@ public class Reporter {
 			// An indexed expression must be of an int type
 			case INVALID_INDEX: {
 				emit("Index expression is not of type int " + a1.posn);
+				break;
+			}
+			
+			// A variable declaration identifier was used in a var decl statement
+			case VARDECL_USED: {
+				emit("Identifier at " + a1.posn + " cannot refer to the variable declaration at " + a2.posn);
 				break;
 			}
 		}

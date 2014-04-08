@@ -14,6 +14,7 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 	private MethodDecl mainMethod = null;
 	private ClassDecl currentClassDecl = null;
 	private MethodDecl currentMethodDecl = null;
+	private VarDecl currentVarDecl = null;
 	private IdentificationTable table = new IdentificationTable();
 
 	// Keep track of all predefined names to handle
@@ -125,6 +126,8 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 		// Must check that the type of the field can be identified
 		if (!table.classExists(fd.type)) {
 			Reporter.report(ErrorType.UNDECLARED_TYPE, fd.type, null);
+		} else if(fd.type.typeKind == TypeKind.VOID) {
+			Reporter.report(ErrorType.VOID_TYPE, fd.type, null);
 		}
 
 		return fd.type;
@@ -169,6 +172,8 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 		arg.setDeclarationAtScope(pd);
 		if (!table.classExists(pd.type)) {
 			Reporter.report(ErrorType.UNDECLARED_TYPE, pd.type, null);
+		} else if(pd.type.typeKind == TypeKind.VOID) {
+			Reporter.report(ErrorType.VOID_TYPE, pd.type, null);
 		}
 
 		return pd.type;
@@ -178,8 +183,10 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 		arg.setDeclarationAtScope(decl);
 		if (!table.classExists(decl.type)) {
 			Reporter.report(ErrorType.UNDECLARED_TYPE, decl.type, null);
+		} else if(decl.type.typeKind == TypeKind.VOID) {
+			Reporter.report(ErrorType.VOID_TYPE, decl.type, null);
 		}
-
+		
 		return decl.type;
 	}
 	
@@ -221,19 +228,32 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 		return null;
 	}
 
-	// The stmt of the vardecl may not refer to the variable itself so we check the stmt first
+	// The stmt of the vardecl may not refer to the variable itself
 	public Type visitVardeclStmt(VarDeclStmt stmt, IdentificationTable arg) {
-		Type initExpType = stmt.initExp.visit(this, arg);
 		Type varDeclType = stmt.varDecl.visit(this, arg);
+		
+		currentVarDecl = stmt.varDecl;
+		Type initExpType = stmt.initExp.visit(this, arg);
 		IdentificationTable.match(varDeclType, initExpType, true);
+		currentVarDecl = null;
+		
+		// Can't have a class reference as the sole rhs
+		if(stmt.initExp instanceof RefExpr && initExpType.typeKind == TypeKind.CLASS) {
+			RefExpr re = (RefExpr)stmt.initExp;
+			Declaration decl = table.getDeclarationAtScope(re.ref.decl.name);
+			if(decl != null) Reporter.report(ErrorType.CLASS_IDENTIFER, stmt, null);
+		}
 
 		return varDeclType;
 	}
 
 	public Type visitAssignStmt(AssignStmt stmt, IdentificationTable arg) {
-		Type valType = stmt.val.visit(this, arg);
 		Type refType = stmt.ref.visit(this, arg);
+		Type valType = stmt.val.visit(this, arg);
 		IdentificationTable.match(valType, refType, true);
+		
+		if(stmt.ref.decl instanceof MethodDecl) 
+			Reporter.report(ErrorType.FUNCTION_ASSIGNMENT, stmt.ref.decl, null);
 
 		return refType;
 	}
@@ -241,16 +261,19 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 	public Type visitCallStmt(CallStmt stmt, IdentificationTable arg) {
 
 		Type methodType = stmt.methodRef.visit(this, arg);
+		
+		if(methodType.typeKind != TypeKind.ERROR) {
 
-		// Check that parameter count is correct and each type is correct
-		MethodDecl decl = (MethodDecl) stmt.methodRef.decl;
-		if (decl.parameterDeclList.size() != stmt.argList.size()) {
-			Reporter.report(ErrorType.INVALID_PARAM_COUNT, stmt, decl);
-		} else {
-			for (int i = 0; i < stmt.argList.size(); i++) {
-				Type exprType = stmt.argList.get(i).visit(this, arg);
-				Type pdType = decl.parameterDeclList.get(i).type;
-				IdentificationTable.match(pdType, exprType, true);
+			// Check that parameter count is correct and each type is correct
+			MethodDecl decl = (MethodDecl) stmt.methodRef.decl;
+			if (decl.parameterDeclList.size() != stmt.argList.size()) {
+				Reporter.report(ErrorType.INVALID_PARAM_COUNT, stmt, decl);
+			} else {
+				for (int i = 0; i < stmt.argList.size(); i++) {
+					Type exprType = stmt.argList.get(i).visit(this, arg);
+					Type pdType = decl.parameterDeclList.get(i).type;
+					IdentificationTable.match(pdType, exprType, true);
+				}
 			}
 		}
 
@@ -338,7 +361,7 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 	}
 
 	public Type visitRefExpr(RefExpr expr, IdentificationTable arg) {
-		Type exprType = expr.ref.visit(this, arg);
+		Type exprType = expr.ref.visit(this, arg);		
 		return exprType;
 	}
 
@@ -424,22 +447,22 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 			return new BaseType(TypeKind.ERROR, ref.id.posn);
 		}
 				
-		// If the qualifed ref is a class declaration, members must be static
-		else if(qualified instanceof ClassDecl) {
+		// If the qualifed ref is a class declaration, members must be static (must check for 'this')
+		else if(qualified instanceof ClassDecl && !(ref.ref instanceof ThisRef)) {
 			if(!md.isStatic) {
 				Reporter.report(ErrorType.STATIC, md, ref.id);
 				return new BaseType(TypeKind.ERROR, ref.id.posn);
 			} else if(md.isPrivate) {
 				Reporter.report(ErrorType.VISIBILITY, md, ref.id);
 				return new BaseType(TypeKind.ERROR, ref.id.posn);
-			}
+			} 
 		}
 		
 		// The member should not be a method, as this is unsupported
 		else if(qualified instanceof MethodDecl) {
 			Reporter.report(ErrorType.UNDEFINED, ref.id, null);
 		}
-				
+
 		// Otherwise, we can assume the object is a variable and attempt to access members
 		else if(md.isPrivate && currentClassDecl != qualClassDecl) {
 			Reporter.report(ErrorType.VISIBILITY, md, ref.id);
@@ -453,7 +476,7 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 
 	public Type visitIndexedRef(IndexedRef ref, IdentificationTable arg) {
 				
-		Type refType = ref.ref.visit(this, arg);
+		ArrayType refType = (ArrayType) ref.ref.visit(this, arg);
 
 		// Make sure index is an integer
 		Type indexExprType = ref.indexExpr.visit(this, arg);
@@ -462,7 +485,7 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 		}
 
 		ref.decl = ref.ref.decl;
-		return refType;
+		return refType.eltType;
 	}
 
 	public Type visitIdRef(IdRef ref, IdentificationTable arg) {
@@ -489,7 +512,13 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 	// /////////////////////////////////////////////////////////////////////////////
 
 	public Type visitIdentifier(Identifier id, IdentificationTable arg) {
-
+		
+		// Must check identifier is not of the same type being declared
+		if(currentVarDecl != null && currentVarDecl.name.equals(id.spelling)) {
+			Reporter.report(ErrorType.VARDECL_USED, id, currentVarDecl);
+			return new BaseType(TypeKind.ERROR, id.posn);
+		}
+				
 		// Check if identifier can be found in current scope
 		Declaration decl = arg.getDeclarationAtScope(id.spelling);
 		if (decl != null) { id.decl = decl; return decl.type; }
