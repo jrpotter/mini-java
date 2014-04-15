@@ -4,6 +4,7 @@ import miniJava.AbstractSyntaxTrees.*;
 
 enum ErrorType {
 	THIS,
+	LENGTH,
 	VOID_TYPE,
 	CLASS_IDENTIFER,
 	VARDECL_USED,
@@ -72,9 +73,15 @@ public class Reporter {
 				break;
 			}
 			
+			// Array types have the single field 'length'
+			case LENGTH: {
+				emit("Array types have only a single field 'length' (at " + a1.posn + ").");
+				break;
+			}
+			
 			// Can't use a class as an identifier solely
 			case CLASS_IDENTIFER: {
-				emit("Cannot use class identifier by outside of a qualified reference at " + a1.posn);
+				emit("Cannot use class identifier outside of a qualified reference at " + a1.posn);
 				break;
 			}
 			

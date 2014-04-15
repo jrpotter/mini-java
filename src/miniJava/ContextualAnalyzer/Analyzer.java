@@ -11,10 +11,18 @@ import miniJava.AbstractSyntaxTrees.Package;
 
 public class Analyzer implements Visitor<IdentificationTable, Type> {
 
-	private MethodDecl mainMethod = null;
+	public static MethodDecl mainMethod = null;
+	public static MethodDecl println = null;
+	
+	// Notifies if handling predefined as opposed to user defined code
+	private boolean predefinedGen = true;
+	
+	// Keeps track of declarations
+	private VarDecl currentVarDecl = null;
 	private ClassDecl currentClassDecl = null;
 	private MethodDecl currentMethodDecl = null;
-	private VarDecl currentVarDecl = null;
+	
+	// Keeps track of identifcatoin
 	private IdentificationTable table = new IdentificationTable();
 
 	// Keep track of all predefined names to handle
@@ -38,6 +46,7 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 			Parser parser = new Parser(scanner);
 			parser.parse().visit(this, table);
 		}
+		predefinedGen = false;
 	}
 
 	/**
@@ -134,6 +143,10 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 	}
 
 	public Type visitMethodDecl(MethodDecl md, IdentificationTable arg) {
+		
+		if(predefinedGen && md.name.equals("println")) {
+			println = md;
+		}
 
 		// Check if a valid entry point to program
 		if (IdentificationTable.isMainMethod(md)) {
@@ -420,8 +433,18 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 		
 		Type refType = ref.ref.visit(this, arg);
 		
+		// Array types only have the single 'length' field
+		if(refType.typeKind == TypeKind.ARRAY) {
+			if(!ref.id.spelling.equals("length")) {
+				Reporter.report(ErrorType.LENGTH, ref.id, null);
+				return refType;
+			}
+			
+			return new BaseType(TypeKind.INT, ref.id.posn);
+		} 
+
 		// Note qualified ref's only make sense in the context of classes
-		if(refType.typeKind != TypeKind.CLASS) {
+		else if(refType.typeKind != TypeKind.CLASS) {
 			if(refType.typeKind != TypeKind.ERROR) // Don't need to report multiple times
 				Reporter.report(ErrorType.TYPE_MISMATCH, new BaseType(TypeKind.CLASS, null), refType);
 			
@@ -446,7 +469,7 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 			Reporter.report(ErrorType.UNDEFINED, ref.id, null);
 			return new BaseType(TypeKind.ERROR, ref.id.posn);
 		}
-				
+			
 		// If the qualifed ref is a class declaration, members must be static (must check for 'this')
 		else if(qualified instanceof ClassDecl && !(ref.ref instanceof ThisRef)) {
 			if(!md.isStatic) {
@@ -468,7 +491,7 @@ public class Analyzer implements Visitor<IdentificationTable, Type> {
 			Reporter.report(ErrorType.VISIBILITY, md, ref.id);
 			return new BaseType(TypeKind.ERROR, ref.id.posn);
 		}
-		
+				
 		ref.id.decl = md;
 		ref.decl = md;
 		return md.type;

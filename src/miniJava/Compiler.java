@@ -2,10 +2,11 @@ package miniJava;
 
 import java.io.*;
 
+import mJAM.*;
 import miniJava.SyntacticAnalyzer.*;
-// import miniJava.AbstractSyntaxTrees.ASTDisplay;
 import miniJava.AbstractSyntaxTrees.Package;
 import miniJava.ContextualAnalyzer.Analyzer;
+import miniJava.CodeGenerator.Encoder;
 import miniJava.Exceptions.*;
 
 public class Compiler {
@@ -25,15 +26,28 @@ public class Compiler {
 			Scanner scanner = new Scanner(new BufferedReader(input));
 			Parser parser = new Parser(scanner);
 			Package p = parser.parse();
-			
-			// Display
-			// ASTDisplay display = new ASTDisplay();
-			// display.showTree(p);
 
 			// Identification/Type Checking
 			Analyzer analyzer = new Analyzer();
 			analyzer.visitPackage(p, null);
-			System.exit(analyzer.validate());
+			int analyzed = analyzer.validate();
+			
+			// Begin Compilation to mJAM
+			if(analyzed == 0) {
+				
+				Encoder encoder = new Encoder();
+				encoder.visitPackage(p, null);
+				
+				// Create object file
+				int pos = args[0].lastIndexOf(".java");
+				String objectFileName = args[0].substring(0, pos) + ".mJAM";
+				ObjectFile objF = new ObjectFile(objectFileName);
+				if(objF.write()) {
+					System.out.println("***Object File Failed.");
+				}
+			}
+			
+			System.exit(analyzed);
 
 		} catch (FileNotFoundException e) {
 			System.out.println("***" + e.getMessage());

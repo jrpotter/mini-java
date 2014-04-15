@@ -5,6 +5,7 @@
  */
 package miniJava.AbstractSyntaxTrees;
 
+import miniJava.CodeGenerator.RuntimeEntity;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class Reference extends AST {
@@ -13,4 +14,5 @@ public abstract class Reference extends AST {
 	}
 
 	public Declaration decl;
+	public RuntimeEntity entity;
 }
