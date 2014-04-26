@@ -12,7 +12,6 @@ public class Operator extends Terminal {
 
 	public Operator(Token t, SourcePosition posn) {
 		super(t.spelling, posn);
-		token = t;
 	}
 
 	public <A, R> R visit(Visitor<A, R> v, A o) {

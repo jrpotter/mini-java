@@ -16,6 +16,10 @@ public class ClassType extends Type {
 	public <A, R> R visit(Visitor<A, R> v, A o) {
 		return v.visitClassType(this, o);
 	}
+	
+	public String toString() {
+		return "Class " + className.spelling;
+	}
 
 	public Identifier className;
 }

@@ -13,6 +13,7 @@ public abstract class Reference extends AST {
 		super(posn);
 	}
 
+	public String spelling;
 	public Declaration decl;
 	public RuntimeEntity entity;
 }

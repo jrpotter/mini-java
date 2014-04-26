@@ -18,6 +18,10 @@ public class FieldDecl extends MemberDecl {
 		super(md, posn);
 	}
 
+	public FieldDecl(Declarators d, String name) {
+		super(d.isPrivate, d.isStatic, d.mt, name, d.posn);
+	}
+
 	public <A, R> R visit(Visitor<A, R> v, A o) {
 		return v.visitFieldDecl(this, o);
 	}

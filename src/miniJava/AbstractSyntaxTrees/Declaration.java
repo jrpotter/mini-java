@@ -6,6 +6,7 @@
 package miniJava.AbstractSyntaxTrees;
 
 import miniJava.CodeGenerator.RuntimeEntity;
+import miniJava.ContextualAnalyzer.IdTable;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class Declaration extends AST {
@@ -16,17 +17,8 @@ public abstract class Declaration extends AST {
 		this.type = type;
 	}
 
-	@Override
-	public String toString() {
-		if (posn != null) {
-			return this.name + "(Line: " + posn.line + ", Column: " + posn.col
-					+ ")";
-		} else {
-			return super.toString();
-		}
-	}
-
 	public RuntimeEntity entity;
+	public IdTable table;
 	public String name;
 	public Type type;
 }

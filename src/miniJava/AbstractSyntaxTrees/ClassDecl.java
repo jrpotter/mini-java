@@ -9,13 +9,11 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class ClassDecl extends Declaration {
 
-	public ClassDecl(String cn, FieldDeclList fdl, MethodDeclList mdl, SourcePosition posn) {
+	public ClassDecl(String cn, FieldDeclList fdl, MethodDeclList mdl,
+			SourcePosition posn) {
 		super(cn, null, posn);
 		fieldDeclList = fdl;
 		methodDeclList = mdl;
-		
-		Identifier ident = new Identifier(cn, posn);
-		type = new ClassType(ident, posn);
 	}
 
 	public <A, R> R visit(Visitor<A, R> v, A o) {

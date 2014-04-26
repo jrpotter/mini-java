@@ -15,4 +15,8 @@ public class BaseType extends Type {
 	public <A, R> R visit(Visitor<A, R> v, A o) {
 		return v.visitBaseType(this, o);
 	}
+	
+	public String toString() {
+		return typeKind.toString();
+	}
 }

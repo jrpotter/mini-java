@@ -18,6 +18,10 @@ public class ArrayType extends Type {
 	public <A, R> R visit(Visitor<A, R> v, A o) {
 		return v.visitArrayType(this, o);
 	}
+	
+	public String toString() {
+		return eltType + " Array";
+	}
 
 	public Type eltType;
 }

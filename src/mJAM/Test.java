@@ -151,7 +151,6 @@ public class Test
 		/* run code */
 		System.out.println("Running code ... ");
 		Interpreter.debug(objectCodeFileName, asmCodeFileName);
-		// Interpreter.interpret(objectCodeFileName);
 
 		System.out.println("*** mJAM execution completed");
 	}

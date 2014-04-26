@@ -1,313 +1,306 @@
 package miniJava.SyntacticAnalyzer;
 
 import java.io.*;
-import miniJava.Exceptions.*;
 
 public class Scanner {
 
 	private int col = 1;
 	private int line = 1;
+	private boolean predefined;
 	private BufferedReader input;
-
-	public Scanner(BufferedReader input) {
-		this.input = input;
-	}
-
-	public Scanner(String input) {
-		StringReader reader = new StringReader(input);
-		this.input = new BufferedReader(reader);
-	}
-
+	
 	/**
-	 * Scans in input, returning next token.
+	 * 
+	 * @param input
+	 */
+	public Scanner(BufferedReader input) {
+		this(input, false);
+	}
+	
+	/**
+	 * 
+	 * @param input
+	 * @param predefined
+	 */
+	public Scanner(String input, boolean predefined) {
+		this(new BufferedReader(new StringReader(input)), predefined);
+	}
+	
+	/**
+	 * 
+	 * @param input
+	 * @param predefined
+	 */
+	public Scanner(BufferedReader input, boolean predefined) {
+		this.input = input;
+		this.predefined = predefined;
+	}
+	
+
+	// /////////////////////////////////////////////////////////////////////////////
+	//
+	// Scanning
+	//
+	// /////////////////////////////////////////////////////////////////////////////
+		
+	/**
 	 * 
 	 * @return
 	 * @throws IOException
 	 */
-	public Token scan() throws ScanningException {
-
-		String attr = "";
+	public Token scan() throws IOException {
 		Token token = null;
-
+		String spelling = "";
+		
 		while (token == null) {
-
-			// Check for EOF
+			
 			int c = read();
-			if (c == -1)
-				return new Token("", Token.TYPE.EOT);
+			SourcePosition posn = new SourcePosition(col, line);
+			
+			if(c == -1) {
+				token = new Token("", Token.TYPE.EOT, posn);
+			} else {
+				spelling += (char) c;
+				
+				switch(c) {
 
-			// Setup
-			attr += (char) c;
-
-			switch (c) {
-
-			// Operators
-			case '*':
-				token = new Token(attr, Token.TYPE.BINOP);
-				break;
-
-			case '+':
-				if (peek('+'))
-					throw new ScanningException(col, line);
-				token = new Token(attr, Token.TYPE.BINOP);
-				break;
-
-			case '-':
-				if (peek('-'))
-					throw new ScanningException(col, line);
-				token = new Token(attr, Token.TYPE.BINOP);
-				break;
-
-			// Check for comment
-			case '/':
-				if (peek('*')) {
-					read();
-					readComment();
-					attr = "";
-				} else if (peek('/')) {
-					readLine();
-					attr = "";
-				} else
-					token = new Token(attr, Token.TYPE.BINOP);
-				break;
-
-			// Check for c or c=
-			case '>':
-			case '<':
-				if (peek('='))
-					attr += (char) read();
-				token = new Token(attr, Token.TYPE.BINOP);
-				break;
-
-			// Check for ! or !=
-			case '!':
-				if (!peek('='))
-					token = new Token(attr, Token.TYPE.UNOP);
-				else {
-					attr += (char) read();
-					token = new Token(attr, Token.TYPE.BINOP);
-				}
-				break;
-
-			// Check for && or ||
-			case '&':
-			case '|':
-				if (!peek((char) c))
-					throw new ScanningException(col, line);
-				else {
-					attr += (char) read();
-					token = new Token(attr, Token.TYPE.BINOP);
-				}
-				break;
-
-			// Other Operators
-			case '=':
-				if (!peek('='))
-					token = new Token(attr, Token.TYPE.EQUALS);
-				else {
-					attr += (char) read();
-					token = new Token(attr, Token.TYPE.BINOP);
-				}
-				break;
-
-			case '.':
-				token = new Token(attr, Token.TYPE.PERIOD);
-				break;
-
-			case ',':
-				token = new Token(attr, Token.TYPE.COMMA);
-				break;
-
-			case '[':
-				token = new Token(attr, Token.TYPE.LSQUARE);
-				break;
-
-			case ']':
-				token = new Token(attr, Token.TYPE.RSQUARE);
-				break;
-
-			case '{':
-				token = new Token(attr, Token.TYPE.LBRACKET);
-				break;
-
-			case '}':
-				token = new Token(attr, Token.TYPE.RBRACKET);
-				break;
-
-			case '(':
-				token = new Token(attr, Token.TYPE.LPAREN);
-				break;
-
-			case ')':
-				token = new Token(attr, Token.TYPE.RPAREN);
-				break;
-
-			case ';':
-				token = new Token(attr, Token.TYPE.SEMICOLON);
-				break;
-
-			default:
-
-				// Identifier or Keyword
-				if (isAlpha((char) c)) {
-					for (char n = peek(); isAlpha(n) || isDigit(n);) {
-						attr += (char) read();
-						n = peek();
+					// Operators
+					case '*':
+					case '+':
+					case '-': {
+						if(peek(c)) throw new ScanningException(posn);
+						token = new Token(spelling, Token.TYPE.BINOP, posn);
+						break;
 					}
+		
+					// Comment
+					case '/': {
+						if(peek('*')) {
+							read();
+							readMultiLineComment();
+							spelling = "";
+						} else if(peek('/')) {
+							readSingleLineComment();
+							spelling = "";
+						} else {
+							token = new Token(spelling, Token.TYPE.BINOP, posn);
+						}
+						
+						break;
+					}
+		
+					// Relational
+					case '>':
+					case '<': {
+						if (peek('=')) spelling += (char) read();
+						token = new Token(spelling, Token.TYPE.BINOP, posn);
+						break;
+					}
+		
+					// Negation
+					case '!': {
+						if(peek('=')) {
+							spelling += (char) read();
+							token = new Token(spelling, Token.TYPE.BINOP, posn);
+						} else {
+							token = new Token(spelling, Token.TYPE.UNOP, posn);
+						}
+				
+						break;
+					}
+		
+					// Logical
+					case '&':
+					case '|': {
+						if(!peek(c)) {
+							throw new ScanningException(posn);
+						} else {
+							spelling += (char) read();
+							token = new Token(spelling, Token.TYPE.BINOP, posn);
+						}
+						
+						break;
+					}
+		
+					// Other Operators
+					case '=': {
+						if(peek('=')) {
+							spelling += (char) read();
+							token = new Token(spelling, Token.TYPE.BINOP, posn);
+						} else {
+							token = new Token(spelling, Token.TYPE.EQUALS, posn);
+						}
+						
+						break;
+					}
+		
+					// Miscellaneous
+					case '.':
+					case ',':
+					case '[':
+					case ']':
+					case '{':
+					case '}':
+					case '(':
+					case ')':
+					case ';': {
+						token = new Token(spelling, Token.symbols.get(c), posn);
+						break;
+					}
+		
+					default: {
+		
+						// Identifier or keyword
+						if(isAlpha(c)) {
+							int next = peek();
+							while(isAlpha(next) || isDigit(next) || next == '_') {
+								spelling += (char) read();
+								next = peek();
+							}
+							
+							if(Token.keywords.containsKey(spelling)) {
+								token = new Token(spelling, Token.keywords.get(spelling), posn);
+							} else {
+								token = new Token(spelling, Token.TYPE.ID, posn);
+							}
+						}
+		
+						// Number
+						else if(isDigit(c)) {
+							int next = peek();
+							while(isDigit(next)) {
+								spelling += (char) read();
+								next = peek();
+							}
 
-					if (Token.keywords.containsKey(attr)) {
-						token = new Token(attr, Token.keywords.get(attr));
-					} else {
-						token = new Token(attr, Token.TYPE.ID);
+							token = new Token(spelling, Token.TYPE.NUM, posn);
+						}
+		
+						// Whitespace
+						else if(isWhitespace(c)) {
+							spelling = "";
+						}
+						
+						// Unrecognized Character
+						else {
+							throw new ScanningException(posn);
+						}
 					}
 				}
-
-				// Number
-				else if (isDigit((char) c)) {
-					for (char n = peek(); isDigit(n);) {
-						attr += (char) read();
-						n = peek();
-					}
-
-					token = new Token(attr, Token.TYPE.NUM);
-				}
-
-				// Whitespace
-				else if (isWhitespace((char) c)) {
-					attr = "";
-				}
-
-				// Unrecognized Character
-				else
-					throw new ScanningException(col, line);
-				;
-
-				break;
 			}
 		}
 
-		token.posn = new SourcePosition(line, col - token.spelling.length());
 		return token;
 	}
 
+
+	
+	// /////////////////////////////////////////////////////////////////////////////
+	//
+	// Convenience Methods
+	//
+	// /////////////////////////////////////////////////////////////////////////////
+	
 	/**
-	 * Looks at next character in stream without consuming.
-	 * 
-	 * @return
-	 * @throws IOException
-	 */
-	private char peek() throws ScanningException {
-		try {
-			input.mark(1);
-			int next = input.read();
-			input.reset();
-
-			return next == -1 ? '\0' : (char) next;
-		} catch (IOException e) {
-			throw new ScanningException(col, line);
-		}
-	}
-
-	/**
-	 * Returns whether passed character is next in stream.
-	 * 
-	 * @param c
-	 * @return
-	 * @throws IOException
-	 */
-	private boolean peek(char c) throws ScanningException {
-		try {
-			input.mark(1);
-			int next = input.read();
-			input.reset();
-
-			return c == next;
-		} catch (IOException e) {
-			throw new ScanningException(col, line);
-		}
-	}
-
-	/**
-	 * Alternative reading that keeps track of position.
-	 * 
-	 * @return
-	 * @throws IOException
-	 */
-	private int read() throws ScanningException {
-		try {
-			int next = input.read();
-			if (next != '\n' && next != '\r')
-				col += 1;
-			else {
-				col = 1;
-				line += 1;
-				if (peek('\r') || peek('\n'))
-					next = input.read();
-			}
-
-			return next;
-		} catch (IOException e) {
-			throw new ScanningException(col, line);
-		}
-	}
-
-	/**
-	 * Consumes input until an end of comment has been reached.
-	 * 
-	 * @throws IOException
-	 */
-	private void readComment() throws ScanningException {
-		char prev = '\0', current = '\0';
-		while (prev != '*' || current != '/') {
-
-			prev = current;
-
-			int next = read();
-			if (next == -1)
-				throw new ScanningException(col, line);
-			else
-				current = (char) next;
-		}
-	}
-
-	/**
-	 * Consumes input until the end of line is reached
-	 * 
-	 * @throws IOException
-	 */
-	private void readLine() throws ScanningException {
-		for (int n = 0; n != '\n' && n != '\r' && n != -1; n = read()) {
-		}
-	}
-
-	/**
-	 * Tells whether character is alphabetical.
 	 * 
 	 * @param c
 	 * @return
 	 */
-	private boolean isAlpha(char c) {
-		return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+	private boolean isAlpha(int c) {
+		return (c >= 'a' && c <= 'z') 
+			|| (c >= 'A' && c <= 'Z')
+			|| (predefined && c == '_');
 	}
-
+	
 	/**
-	 * Tells whether character is numerical.
 	 * 
 	 * @param c
 	 * @return
 	 */
-	private boolean isDigit(char c) {
+	private boolean isDigit(int c) {
 		return c >= '0' && c <= '9';
 	}
-
+	
 	/**
-	 * Tells wheter character is whitespace.
 	 * 
 	 * @param c
 	 * @return
 	 */
-	private boolean isWhitespace(char c) {
+	private boolean isWhitespace(int c) {
 		return c == ' ' || c == '\n' || c == '\r' || c == '\t';
 	}
+	
+	/**
+	 * 
+	 * @return
+	 * @throws IOException
+	 */
+	private int peek() throws IOException {
+		input.mark(1);
+		int next = input.read();
+		input.reset();
 
+		return next;
+	}
+	
+	/**
+	 * 
+	 * @param c
+	 * @return
+	 * @throws IOException
+	 */
+	private boolean peek(int c) throws IOException {
+		input.mark(1);
+		int next = input.read();
+		input.reset();
+
+		return c == next;
+	}
+	
+	/**
+	 * 
+	 * @return
+	 * @throws IOException
+	 */
+	private int read() throws IOException {
+		int next = input.read();
+		if(next == '\n' || next == '\r') {
+			col = 1;
+			line += 1;
+		} else {
+			col += 1;
+		}
+		
+		return next;
+	}
+	
+	/**
+	 * 
+	 * @throws IOException
+	 */
+	private void readSingleLineComment() throws IOException {
+		col = 1;
+		line += 1;
+		input.readLine();
+	}
+
+	/**
+	 * 
+	 * @throws IOException
+	 */
+	private void readMultiLineComment() throws IOException {
+		int prev = '\0';
+		int current = '\0';
+		
+		while(prev != '*' || current != '/') {
+			prev = current;
+			current = read();
+			
+			// Unterminated
+			if(current == -1) {
+				SourcePosition posn = new SourcePosition(line, col);
+				throw new ScanningException(posn);
+			}
+		}
+	}
 }

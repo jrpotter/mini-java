@@ -1,94 +1,79 @@
 package miniJava.CodeGenerator;
 
+import java.util.HashMap;
+
 import mJAM.Machine;
 import mJAM.Machine.*;
 import miniJava.AbstractSyntaxTrees.*;
 import miniJava.AbstractSyntaxTrees.Package;
 import miniJava.ContextualAnalyzer.Analyzer;
 
-public class Encoder implements Visitor<Integer, Integer> {
+public class Encoder implements Visitor<Integer, Object> {
 	
-	private int mdLBOffset = 0;
-
-	// /////////////////////////////////////////////////////////////////////////////
-	//
-	// Convenience Functions
-	//
-	// /////////////////////////////////////////////////////////////////////////////	
+	// Keeps track of variables placed on the stack
+	private int methodDataOffset = 0;
 	
-	/**
-	 * Get size of type for declaration purposes.
-	 * @param t
-	 * @return
-	 */
-	private int getSize(Type t) {
-		switch(t.typeKind) {
-			case ARRAY:
-			case CLASS:
-				return Machine.addressSize;
-			case INT:
-				return Machine.integerSize;
-			case BOOLEAN:
-				return Machine.booleanSize;
-			case VOID:
-				return 0;
-			default:
-				return -1;
-		}
-	}
-
+	// Maintains data to correct once completed traversal
+	private HashMap<Integer, Code> patches = new HashMap<>();
+	
 	
 	// /////////////////////////////////////////////////////////////////////////////
 	//
 	// PACKAGE
 	//
 	// /////////////////////////////////////////////////////////////////////////////
-		
+
 	@Override
-	public Integer visitPackage(Package prog, Integer arg) {
+	public Object visitPackage(Package prog, Integer arg) {
 		
-		// Initialize static fields
+		Machine.initCodeGen();
+		
+		// Initialize all static fields
+		int staticFieldsSize = 0;
 		for(ClassDecl cd : prog.classDeclList) {
 			for(int i = 0; i < cd.fieldDeclList.size(); i++) {
-				if(cd.fieldDeclList.get(i).isStatic) {
-					cd.fieldDeclList.get(i).visit(this, i);
+				FieldDecl fd = cd.fieldDeclList.get(i);
+				if(fd.isStatic) {
+					int size = getSize(fd.type);
+					fd.entity = new RuntimeEntity(size, staticFieldsSize, Reg.SB);
+					staticFieldsSize += size;
 				}
 			}
 		}
 		
-		int patch = Machine.nextInstrAddr();
-		Machine.emit(Op.JUMP, Reg.CB, 0);
-		
-		// Initialize all classes and methods
-		for(ClassDecl cd : prog.classDeclList) {
-			cd.visit(this, 1);
+		if(staticFieldsSize > 0) {
+			Machine.emit(Op.PUSH, staticFieldsSize);
 		}
 		
-		// Link classes & build stack
-		Machine.patch(patch, Machine.nextInstrAddr());
+		// Build Classes
 		for(ClassDecl cd : prog.classDeclList) {
 			int cdPatch = Machine.nextInstrAddr();
 			Machine.emit(Op.JUMP, Reg.CB, 0);
-			Machine.patch(cdPatch, cd.visit(this, 0));
+			cd.visit(this, cdPatch);
 		}
 		
 		// Build main function
-		mdLBOffset = Machine.linkDataSize;
+		methodDataOffset = Machine.linkDataSize;
 		int mainPatch = Machine.nextInstrAddr();
 		Machine.emit(Op.JUMP, Reg.CB, 0);
-		Analyzer.mainMethod.visit(this, 0);
-		
-		
+		Analyzer.main.visit(this, null);
+
 		// Run main function
 		int mainLabel = Machine.nextInstrAddr();
-		RuntimeEntity main = Analyzer.mainMethod.entity;
-		
+		RuntimeEntity main = Analyzer.main.entity;
+
 		Machine.emit(Op.LOADL, Machine.nullRep);
 		Machine.emit(Op.CALL, Reg.CB, main.addr);
 		Machine.emit(Machine.Op.HALT, 0 ,0, 0);
 		Machine.patch(mainPatch, mainLabel);
 		
-		return 0;
+		// Patch up
+		for(Integer instr : patches.keySet()) {
+			Code c = patches.get(instr);
+			c.modify(instr);
+		}
+		
+		return null;
 	}
 	
 	
@@ -99,163 +84,128 @@ public class Encoder implements Visitor<Integer, Integer> {
 	// /////////////////////////////////////////////////////////////////////////////
 
 	@Override
-	public Integer visitClassDecl(ClassDecl cd, Integer init) {
+	public Object visitClassDecl(ClassDecl cd, Integer patch) {
 		
-		/* Give an address to each method and class, so it can be referred
-		 * to directly by jumping.
-		*/
-		if(init != 0) {
-			
-			// Get size of class
-			int size = 0;
-			for(FieldDecl fd : cd.fieldDeclList) {
-				if(!fd.isStatic) {
-					fd.visit(this, size);
-					size += getSize(fd.type);
-				}
+		// Get size of class
+		int size = 0;
+		for(FieldDecl fd : cd.fieldDeclList) {
+			if(!fd.isStatic) {
+				fd.visit(this, size);
+				size += fd.entity.size;
 			}
-			
-			// Build Methods
-			for(MethodDecl md : cd.methodDeclList) {
-				md.visit(this, init);
-			}
-			
-			// Runtime Entity
-			int addr = Machine.nextInstrAddr();
-			cd.entity = new RuntimeEntity(size, addr, Reg.CB, addr);
-			Machine.emit(Op.JUMP, Reg.CB, 0);
-			
-			return addr;
-		} 
+		}		
 		
 		// Build Instance Methods
 		for(MethodDecl md : cd.methodDeclList) {
-			if(!md.isStatic) {
-				md.visit(this, 0);
+			if(md != Analyzer.main) {
+				md.visit(this, null);
 			}
 		}
 		
-		// Build class descriptor
-		int label = Machine.nextInstrAddr();
-		Machine.patch(cd.entity.instr, label);
+		// Build Class Descriptor
+		int addr = Machine.nextInstrAddr();
+		Machine.patch(patch, addr);
 		
-		Machine.emit(Op.LOADL, -1); 					// No superclasses allowed
-		Machine.emit(Op.LOADL, cd.entity.size);			// Size of class
-		Machine.emit(Op.LOADA, Reg.CB, cd.entity.addr);	// Address of class
+		Machine.emit(Op.LOADL, -1); 			// No superclasses allowed
+		Machine.emit(Op.LOADL, size);			// Size of class
+		Machine.emit(Op.LOADA, Reg.CB, addr);	// Address of class
 		
-		return label;
+		// Save entity
+		cd.entity = new RuntimeEntity(size, addr, Reg.CB);
+		
+		return null;
 	}
 
 	@Override
-	public Integer visitFieldDecl(FieldDecl fd, Integer addr) {
-
+	public Object visitFieldDecl(FieldDecl fd, Integer offset) {
+		
+		// Only non-static fields should ever reach this method
 		int size = getSize(fd.type);
-		
-		// Static fields are placed onto the stack
-		if(fd.isStatic) {
-			fd.entity = new RuntimeEntity(size, addr, Reg.SB);
-			Machine.emit(Op.PUSH, size);
-		} else {
-			fd.entity = new RuntimeEntity(size, addr, Reg.OB);
-		}
-
-		return 0;
+		fd.entity = new RuntimeEntity(size, offset, Reg.OB);
+				
+		return null;
 	}
 
-	
 	@Override
-	public Integer visitMethodDecl(MethodDecl md, Integer init) {
+	public Object visitMethodDecl(MethodDecl md, Integer arg) {
 		
-		mdLBOffset = Machine.linkDataSize;
+		// Reset for next local LB
+		methodDataOffset = Machine.linkDataSize;
 		
-		if(init != 0) {
-			int size = getSize(md.type);
-			int addr = Machine.nextInstrAddr();
-			md.entity = new RuntimeEntity(size, addr, Reg.CB, addr);
-			Machine.emit(Op.JUMP, Reg.CB, 0);
-		} 
+		// Save Entity
+		int size = getSize(md.type);
+		int addr = Machine.nextInstrAddr();
+		md.entity = new RuntimeEntity(size, addr, Reg.CB);
 		
-		else {
-			// Setup parameters
-			int paramS = 0;
-			for(ParameterDecl pd : md.parameterDeclList) {
-				paramS += getSize(md.type);
-				pd.visit(this, -paramS);
-			}
-			
-			// Setup body
-			int addr = Machine.nextInstrAddr();
-			Machine.patch(md.entity.instr, addr);
-			for(Statement s : md.statementList) {
-				s.visit(this, 0);
-			}
-			
-			// Setup return statement
-			if(md.returnExp != null) {
-				md.returnExp.visit(this, 0);
-			}
-			
-			// Return from function
-			// Machine.emit(Op.HALT, 4, 0, 0); (See snapshot)
-			Machine.emit(Op.RETURN, md.entity.size, 0, paramS);
+		// Setup parameters
+		int parameterSize = 0;
+		for(ParameterDecl pd : md.parameterDeclList) {
+			parameterSize += getSize(pd.type);
+			pd.visit(this, -parameterSize);
 		}
 		
-		return 0;
+		// Build Body
+		for(Statement s : md.statementList) {
+			s.visit(this, null);
+		}
+		
+		// Setup Return					
+		if(md.returnExp != null) {
+			md.returnExp.visit(this, null);
+		}
+		
+		Machine.emit(Op.RETURN, size, 0, parameterSize);
+
+		return null;
 	}
 
-	/**
-	 * Note parameter addresses are negative to LB since they are
-	 * placed onto the stack before emitting a CALL.
-	 */
 	@Override
-	public Integer visitParameterDecl(ParameterDecl pd, Integer addr) {
+	public Object visitParameterDecl(ParameterDecl pd, Integer offset) {
 		
-		// Builds runtime entity, offset at LB
+		// Builds runtime entity (should be negative of LB)
 		int size = getSize(pd.type);
-		pd.entity = new RuntimeEntity(size, addr, Reg.LB);
-		
-		return 0;
+		pd.entity = new RuntimeEntity(size, offset, Reg.LB);
+				
+		return null;
 	}
 
-	/**
-	 * Variable declarations are never disposed (even in static closures).
-	 */
 	@Override
-	public Integer visitVarDecl(VarDecl decl, Integer addr) {
-		
+	public Object visitVarDecl(VarDecl decl, Integer arg) {
+
 		// Builds runtime entity, offset at LB
 		int size = getSize(decl.type);
-		decl.entity = new RuntimeEntity(size, addr, Reg.LB);
+		decl.entity = new RuntimeEntity(size, methodDataOffset, Reg.LB);
 		
 		// Allocates space on stack
 		Machine.emit(Op.PUSH, size);
-		
-		return 0;
+		methodDataOffset += size;
+				
+		return null;
 	}
 	
 	
 	// /////////////////////////////////////////////////////////////////////////////
 	//
 	// TYPES
-	// 
+	//
 	// /////////////////////////////////////////////////////////////////////////////
 
 	@Override
-	public Integer visitBaseType(BaseType type, Integer arg) {
+	public Object visitBaseType(BaseType type, Integer arg) {
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitClassType(ClassType type, Integer arg) {
+	public Object visitClassType(ClassType type, Integer arg) {
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitArrayType(ArrayType type, Integer arg) {
+	public Object visitArrayType(ArrayType type, Integer arg) {
 		
-		return 0;
+		return null;
 	}
 	
 	
@@ -265,171 +215,187 @@ public class Encoder implements Visitor<Integer, Integer> {
 	//
 	// /////////////////////////////////////////////////////////////////////////////
 
-	/**
-	 * We note a block statement may contain a variable declaration,
-	 * that should go out of scope at the end of the statement.
-	 * If the passed argument is 1, we indicate we want this to
-	 * happen.
-	 */
 	@Override
-	public Integer visitBlockStmt(BlockStmt stmt, Integer arg) {
+	public Object visitBlockStmt(BlockStmt stmt, Integer arg) {
 		
 		// Execute statements
 		int size = 0;
 		for(Statement s : stmt.sl) {
-			s.visit(this, 0);
-			
-			// Push variable declarations if necessary
-			if(arg == 1 && s instanceof VarDeclStmt) {
-				VarDeclStmt decl = (VarDeclStmt) s;
-				size += getSize(decl.varDecl.type);
+			s.visit(this, null);
+			if(s instanceof VarDeclStmt) {
+				VarDeclStmt vds = (VarDeclStmt) s;
+				size += vds.varDecl.entity.size;
 			}
 		}
 		
 		// Pop off variable declarations
-		Machine.emit(Op.POP, size);
-		
-		return 0;
+		if(size > 0) {
+			Machine.emit(Op.POP, size);
+			methodDataOffset -= size;
+		}
+				
+		return null;
 	}
 
-	/**
-	 * We declare the variable, place the RHS onto the stack, and
-	 * replace the value of the variable with the top of the stack.
-	 */
 	@Override
-	public Integer visitVardeclStmt(VarDeclStmt stmt, Integer arg) {
-		stmt.varDecl.visit(this, mdLBOffset);
-		stmt.initExp.visit(this, 0);
+	public Object visitVardeclStmt(VarDeclStmt stmt, Integer arg) {
 		
-		// Assign value
+		stmt.varDecl.visit(this, null);
+		stmt.initExp.visit(this, null);
+		
 		RuntimeEntity e = stmt.varDecl.entity;
-		Machine.emit(Op.STORE, e.size, e.register, e.addr);
+		Machine.emit(Op.STORE, e.size, e.reg, e.addr);
 		
-		// Update position
-		mdLBOffset += getSize(stmt.varDecl.type);
-		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitAssignStmt(AssignStmt stmt, Integer arg) {
+	public Object visitAssignStmt(AssignStmt stmt, Integer arg) {
 		
-		stmt.ref.visit(this, 0);
+		// Can potentially reach declaration directly
+		if(stmt.ref instanceof QualifiedRef) {
+			
+			QualifiedRef ref = (QualifiedRef) stmt.ref;
+			MemberDecl md = (MemberDecl) ref.id.decl;
+			
+			// Just access directly
+			if(md.isStatic) {
+				stmt.val.visit(this, null);
+				patches.put(Machine.nextInstrAddr(), new Code(md, true));
+				Machine.emit(Op.STORE, getSize(md.type), Reg.SB, 0);
+				
+				return null;
+			} 
+			
+			// Access member directly
+			else if(ref.ref instanceof ThisRef) {
+				stmt.val.visit(this, null);
+				
+				int addr = Machine.nextInstrAddr();
+				int size = getSize(ref.id.decl.type);
+				patches.put(addr, new Code(ref.id.decl, true));
+				Machine.emit(Op.STORE, size, Reg.OB, 0);
+				
+				return null;
+			}
+		}
+
+		// Must access member iteratively
+		stmt.ref.visit(this, 1);
+		stmt.val.visit(this, null);
 		
-		// Setup
-		RuntimeEntity e = stmt.ref.entity;
-		
-		// Build code accordingly
-		if(stmt.ref instanceof QualifiedRef) {			
-			e.parent.load();
-			Machine.emit(Op.LOADL, e.addr);
-			stmt.val.visit(this, 0);
+		if(stmt.ref instanceof QualifiedRef) {
 			Machine.emit(Prim.fieldupd);
 		}
 		
 		else if(stmt.ref instanceof IndexedRef) {
-			IndexedRef ref = (IndexedRef) stmt.ref;
-			e.load();
-			ref.indexExpr.visit(this, 0);
-			stmt.val.visit(this, 0);
 			Machine.emit(Prim.arrayupd);
 		}
 		
 		else if(stmt.ref instanceof IdRef) {
-			stmt.val.visit(this, 0);
-			Machine.emit(Op.STORE, e.size, e.register, e.addr);
+			int addr = Machine.nextInstrAddr();
+			int size = getSize(stmt.ref.decl.type);
+			patches.put(addr, new Code(stmt.ref.decl, true));
+			Machine.emit(Op.STORE, size, Reg.ZR, 0);
 		}
 		
-		return 0;
+		return null;
 	}
 
-	/**
-	 * The method in question can either be an instance or static
-	 * function (it must be a MethodDecl).
-	 */
 	@Override
-	public Integer visitCallStmt(CallStmt stmt, Integer arg) {
+	public Object visitCallStmt(CallStmt stmt, Integer arg) {
 		
 		MethodDecl md = (MethodDecl) stmt.methodRef.decl;
 		
 		// Request to print out
 		if(md == Analyzer.println) {
-			stmt.argList.get(0).visit(this, 0);
+			stmt.argList.get(0).visit(this, null);
 			Machine.emit(Prim.putintnl);
-			return 0;
+			return null;
 		}
 		
 		// Push parameters on (must iterate in reverse order)
 		for(int i = stmt.argList.size() - 1; i >= 0; i--) {
-			stmt.argList.get(i).visit(this, 0);
+			stmt.argList.get(i).visit(this, null);
 		}
 		
-		// Call Method
-		stmt.methodRef.visit(this, 0);
+		// Call method directly
 		if(md.isStatic) {
-			Machine.emit(Op.CALL, Reg.CB, md.entity.addr);
-		} else {
-			stmt.methodRef.entity.call();
-			Machine.emit(Op.CALLI, Reg.CB, md.entity.addr);
+			patches.put(Machine.nextInstrAddr(), new Code(md, true));
+			Machine.emit(Op.CALL, Reg.CB, 0);
+		} 
+		
+		// Get address of qualified object
+		else {
+			if(stmt.methodRef instanceof QualifiedRef) {
+				QualifiedRef ref = (QualifiedRef) stmt.methodRef;
+				ref.ref.visit(this, null);
+			} else {
+				Machine.emit(Op.LOADA, Machine.addressSize, Reg.OB, 0);
+			}
+			
+			patches.put(Machine.nextInstrAddr(), new Code(md, true));
+			Machine.emit(Op.CALLI, Reg.CB, 0);
 		}
 		
-		return 0;
+		// Clear off stack if necessary
+		int returnSize = getSize(md.type);
+		if(returnSize > 0) {
+			Machine.emit(Op.POP, returnSize);
+		}
+		
+		return null;
 	}
 
 	@Override
-	public Integer visitIfStmt(IfStmt stmt, Integer arg) {
+	public Object visitIfStmt(IfStmt stmt, Integer arg) {
 		
-		stmt.cond.visit(this, 0);
+		stmt.cond.visit(this, null);
 		
-		// Build Then Statement
+		// Do not have to build as many jump instructions in this case
+		if(stmt.elseStmt == null) {
+			int ifPatch = Machine.nextInstrAddr();
+			Machine.emit(Op.JUMPIF, Machine.falseRep, Reg.CB, 0);
+			
+			stmt.thenStmt.visit(this, null);
+			Machine.patch(ifPatch, Machine.nextInstrAddr());
+			
+			return null;
+		}
+		
+		// Must jump out at end of 'if' clause
 		int ifPatch = Machine.nextInstrAddr();
-		Machine.emit(Op.JUMPIF, Machine.trueRep, Reg.CB, 0);
+		Machine.emit(Op.JUMPIF, Machine.falseRep, Reg.CB, 0);
 		
-		int elsePatch = Machine.nextInstrAddr();
-		Machine.emit(Op.JUMP, Reg.CB, 0);
-		
-		int thenLabel = Machine.nextInstrAddr();
-		stmt.thenStmt.visit(this, 0);
-		
+		stmt.thenStmt.visit(this, null);
 		int thenPatch = Machine.nextInstrAddr();
 		Machine.emit(Op.JUMP, Reg.CB, 0);
 		
-		// Connect labels/patches
-		int endLabel = Machine.nextInstrAddr();
-		Machine.patch(elsePatch, endLabel);
+		// Build 'else' clause
+		Machine.patch(ifPatch, Machine.nextInstrAddr());
+		stmt.elseStmt.visit(this, null);
+		Machine.patch(thenPatch, Machine.nextInstrAddr());
 		
-		if(stmt.elseStmt != null) {
-			stmt.elseStmt.visit(this, 0);
-			endLabel = Machine.nextInstrAddr();
-		}
-		
-		Machine.patch(ifPatch, thenLabel);
-		Machine.patch(thenPatch, endLabel);
-
-		return 0;
+		return null;
 	}
 
-	/**
-	 * We note since the same declaration can be reached multiple times, we
-	 * are forced to pop each declaration initialized.
-	 */
 	@Override
-	public Integer visitWhileStmt(WhileStmt stmt, Integer arg) {
+	public Object visitWhileStmt(WhileStmt stmt, Integer arg) {
 		
 		// Must check the condition each loop
 		int whileLabel = Machine.nextInstrAddr();
-		stmt.cond.visit(this, 0);
+		stmt.cond.visit(this, null);
 		
 		// Jump out once condition fails
 		int whileEndPatch = Machine.nextInstrAddr();
 		Machine.emit(Op.JUMPIF, Machine.falseRep, Reg.CB, 0);
 		
 		// Execute
-		stmt.body.visit(this, 1);
+		stmt.body.visit(this, null);
 		Machine.emit(Op.JUMP, Reg.CB, whileLabel);
 		Machine.patch(whileEndPatch, Machine.nextInstrAddr());
-
-		return 0;
+		
+		return null;
 	}
 	
 	
@@ -440,9 +406,9 @@ public class Encoder implements Visitor<Integer, Integer> {
 	// /////////////////////////////////////////////////////////////////////////////
 
 	@Override
-	public Integer visitUnaryExpr(UnaryExpr expr, Integer arg) {
+	public Object visitUnaryExpr(UnaryExpr expr, Integer arg) {
 		
-		expr.expr.visit(this, 0);
+		expr.expr.visit(this, null);
 		switch(expr.operator.spelling) {
 			case "!":
 				Machine.emit(Prim.not);
@@ -452,115 +418,105 @@ public class Encoder implements Visitor<Integer, Integer> {
 				break;
 		}
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitBinaryExpr(BinaryExpr expr, Integer arg) {
-		expr.left.visit(this, 0);
-		expr.right.visit(this, 0);
-		expr.operator.visit(this, 0);
+	public Object visitBinaryExpr(BinaryExpr expr, Integer arg) {
 		
-		return 0;
-	}
-
-	@Override
-	public Integer visitRefExpr(RefExpr expr, Integer arg) {
-
-		expr.ref.visit(this, 0);
+		String op = expr.operator.spelling;
 		
-		// Build code accordingly
-		if(expr.ref instanceof QualifiedRef) {
+		if(op.equals("&&") || op.equals("||")) {
+			int rep = (op.equals("&&")) ? Machine.falseRep : Machine.trueRep;
 			
-			// Must be requesting length of array
-			if(expr.ref.decl.type.typeKind == TypeKind.ARRAY) {
-				int size = Machine.integerSize;
-				int addr = expr.ref.entity.addr + size;
-				Machine.emit(Op.LOAD, size, Reg.LB, addr);
-			} else {
-				expr.ref.entity.load();
-			}
-		}
-		
-		else if(expr.ref instanceof IndexedRef) {
-			IndexedRef ref = (IndexedRef) expr.ref;
-			ref.entity.load();
-			ref.indexExpr.visit(this, 0);
-			Machine.emit(Prim.arrayref);
-		} 
-		
-		else if(expr.ref instanceof ThisRef) {
-			RuntimeEntity e = expr.ref.entity;
-			Machine.emit(Op.LOADA, e.size, e.register, e.addr);
+			expr.left.visit(this, null);
+			int leftJump = Machine.nextInstrAddr();
+			Machine.emit(Op.JUMPIF, rep, Reg.CB, 0);
+			
+			expr.right.visit(this, null);
+			expr.operator.visit(this, null);
+			
+			Machine.patch(leftJump, Machine.nextInstrAddr());
 		}
 		
 		else {
-			expr.ref.entity.load();
+			expr.left.visit(this, null);
+			expr.right.visit(this, null);
+			expr.operator.visit(this, null);
 		}
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitCallExpr(CallExpr expr, Integer arg) {
+	public Object visitRefExpr(RefExpr expr, Integer arg) {
+
+		expr.ref.visit(this, null);
+		
+		return null;
+	}
+
+	@Override
+	public Object visitCallExpr(CallExpr expr, Integer arg) {
+		
+		MethodDecl md = (MethodDecl) expr.functionRef.decl;
 		
 		// Push parameters on (must iterate in reverse order)
 		for(int i = expr.argList.size() - 1; i >= 0; i--) {
-			expr.argList.get(i).visit(this, 0);
+			expr.argList.get(i).visit(this, null);
 		}
-						
-		// Call method
-		MethodDecl md = (MethodDecl) expr.functionRef.decl;
-		expr.functionRef.visit(this, 0);
+		
+		// Call Method
 		if(md.isStatic) {
-			Machine.emit(Op.CALL, Reg.CB, md.entity.addr);
+			patches.put(Machine.nextInstrAddr(), new Code(md, true));
+			Machine.emit(Op.CALL, Reg.CB, 0);
 		} else {
-			expr.functionRef.entity.call();
-			Machine.emit(Op.CALLI, Reg.CB, md.entity.addr);
+			
+			if(expr.functionRef instanceof QualifiedRef) {
+				QualifiedRef ref = (QualifiedRef) expr.functionRef;
+				ref.ref.visit(this, null);
+			} else {
+				Machine.emit(Op.LOADA, Machine.addressSize, Reg.OB, 0);
+			}
+			
+			patches.put(Machine.nextInstrAddr(), new Code(md, true));
+			Machine.emit(Op.CALLI, Reg.CB, 0);
 		}
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitLiteralExpr(LiteralExpr expr, Integer arg) {
+	public Object visitLiteralExpr(LiteralExpr expr, Integer arg) {
 		
-		expr.literal.visit(this, 0);
+		expr.literal.visit(this, null);
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitNewObjectExpr(NewObjectExpr expr, Integer arg) {
-	
-		RuntimeEntity e = expr.classtype.className.decl.entity;
-		Machine.emit(Op.LOADA, e.register, e.addr);
-		Machine.emit(Op.LOADL, e.size);
+	public Object visitNewObjectExpr(NewObjectExpr expr, Integer arg) {
+		
+		Declaration decl = expr.classtype.className.decl;
+		
+		patches.put(Machine.nextInstrAddr(), new Code(decl, true));
+		Machine.emit(Op.LOADA, Reg.CB, 0);
+		
+		patches.put(Machine.nextInstrAddr(), new Code(decl, false));
+		Machine.emit(Op.LOADL, 0);
+		
 		Machine.emit(Prim.newobj);
 		
-		return 0;
+		return null;
 	}
 
-	/**
-	 * Returns the address where the new array's size is being
-	 * stored (as it cannot be easily accessed otherwise).
-	 */
 	@Override
-	public Integer visitNewArrayExpr(NewArrayExpr expr, Integer arg) {
-		
-		// Setup
-		int addr = mdLBOffset;
-		int size = Machine.integerSize;
-		mdLBOffset += Machine.integerSize;
-		
-		// Add to stack
-		expr.sizeExpr.visit(this, 0);
-		
-		// Create new array
-		Machine.emit(Op.LOAD, size, Reg.LB, addr);
+	public Object visitNewArrayExpr(NewArrayExpr expr, Integer arg) {
+				
+		expr.sizeExpr.visit(this, null);
 		Machine.emit(Prim.newarr);
 				
-		return addr;
+		return null;
 	}
 	
 	
@@ -571,49 +527,91 @@ public class Encoder implements Visitor<Integer, Integer> {
 	// /////////////////////////////////////////////////////////////////////////////
 
 	@Override
-	public Integer visitQualifiedRef(QualifiedRef ref, Integer arg) {
+	public Object visitQualifiedRef(QualifiedRef ref, Integer arg) {
 		
-		ref.ref.visit(this, 0);
-		
-		// Must be accessing length of an array
+		// Array type always returns value
 		if(ref.ref.decl.type.typeKind == TypeKind.ARRAY) {
-			ref.decl = ref.ref.decl;
-			ref.entity = ref.ref.entity;
-		} 
-		
-		// Access class member
-		else {
-			ref.entity = ref.id.decl.entity;
-			ref.entity.parent = ref.ref.entity;
+			
+			// Get address of object
+			if(ref.ref instanceof QualifiedRef) {
+				ref.ref.visit(this, null);
+			} else if(ref.ref instanceof ThisRef) {
+				patches.put(Machine.nextInstrAddr(), new Code(ref.id.decl, true));
+				Machine.emit(Op.STORE, getSize(ref.id.decl.type), Reg.OB, 0);
+			} else {
+				patches.put(Machine.nextInstrAddr(), new Code(ref.ref.decl, true));
+				Machine.emit(Op.LOAD, Machine.addressSize, Reg.LB, 0);
+			}
+			
+			Machine.emit(Op.LOADL, 1);
+			Machine.emit(Prim.sub);
+			Machine.emit(Op.LOADI, Machine.integerSize);
+			
+			return null;
 		}
 		
-		return 0;
+		MemberDecl md = (MemberDecl) ref.id.decl;
+		
+		// Assigning
+		if(arg != null) {
+			ref.ref.visit(this, null);
+			patches.put(Machine.nextInstrAddr(), new Code(ref.id.decl, true));
+			Machine.emit(Op.LOADL, 0);
+		}
+		
+		// Retrieving
+		else if(md.isStatic) {
+			patches.put(Machine.nextInstrAddr(), new Code(md, true));
+			Machine.emit(Op.LOAD, getSize(md.type), Reg.SB, 0);
+		} else {
+			ref.ref.visit(this, null);
+			int addr = Machine.nextInstrAddr();
+			patches.put(addr, new Code(ref.decl, true));
+			
+			Machine.emit(Op.LOADL, 0);
+			Machine.emit(Prim.fieldref);
+		}	
+		
+		return null;
 	}
 
 	@Override
-	public Integer visitIndexedRef(IndexedRef ref, Integer arg) {
+	public Object visitIndexedRef(IndexedRef ref, Integer arg) {
+		
+		ref.ref.visit(this, null);
+		ref.indexExpr.visit(this, null);
+		
+		// Retrieving
+		if(arg == null) {
+			Machine.emit(Prim.arrayref);
+		}
+		
+		return null;
+	}
+
+	@Override
+	public Object visitIdRef(IdRef ref, Integer arg) {
 		
 		ref.entity = ref.decl.entity;
 		
-		return 0;
+		// Retrieving
+		if(arg == null) {
+			int size = getSize(ref.decl.type);
+			int addr = Machine.nextInstrAddr();
+			patches.put(addr, new Code(ref.decl, true));
+			
+			Machine.emit(Op.LOAD, size, Reg.ZR, 0);
+		}
+		
+		return null;
 	}
 
 	@Override
-	public Integer visitIdRef(IdRef ref, Integer arg) {
-
-		ref.entity = ref.decl.entity;
+	public Object visitThisRef(ThisRef ref, Integer arg) {
 		
-		return 0;
-	}
-
-	@Override
-	public Integer visitThisRef(ThisRef ref, Integer arg) {
+		Machine.emit(Op.LOADA, Machine.addressSize, Reg.OB, 0);
 		
-		RuntimeEntity e = ref.decl.entity;
-		ref.entity = new RuntimeEntity(e.size, 0, Reg.OB);
-		ref.entity.indirect = true;
-		
-		return 0;
+		return null;
 	}
 	
 	
@@ -624,15 +622,15 @@ public class Encoder implements Visitor<Integer, Integer> {
 	// /////////////////////////////////////////////////////////////////////////////
 
 	@Override
-	public Integer visitIdentifier(Identifier id, Integer arg) {
+	public Object visitIdentifier(Identifier id, Integer arg) {
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitOperator(Operator op, Integer arg) {
+	public Object visitOperator(Operator op, Integer arg) {
 		
-		switch(op.token.spelling) {
+		switch(op.spelling) {
 			case "+":
 				Machine.emit(Prim.add);
 				break;
@@ -671,20 +669,20 @@ public class Encoder implements Visitor<Integer, Integer> {
 				break;
 		}
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitIntLiteral(IntLiteral num, Integer arg) {
+	public Object visitIntLiteral(IntLiteral num, Integer arg) {
 		
 		Integer lit = Integer.parseInt(num.spelling);
 		Machine.emit(Op.LOADL, lit.intValue());
 		
-		return 0;
+		return null;
 	}
 
 	@Override
-	public Integer visitBooleanLiteral(BooleanLiteral bool, Integer arg) {
+	public Object visitBooleanLiteral(BooleanLiteral bool, Integer arg) {
 		
 		if(bool.spelling.equals("true")) {
 			Machine.emit(Op.LOADL, Machine.trueRep);
@@ -692,7 +690,35 @@ public class Encoder implements Visitor<Integer, Integer> {
 			Machine.emit(Op.LOADL, Machine.falseRep);
 		}
 		
-		return 0;
+		return null;
+	}
+	
+	
+	// /////////////////////////////////////////////////////////////////////////////
+	//
+	// Convenience Methods
+	// 
+	// /////////////////////////////////////////////////////////////////////////////
+
+	/**
+	 * Get size of type for declaration purposes.
+	 * @param t
+	 * @return
+	 */
+	private int getSize(Type t) {
+		switch(t.typeKind) {
+			case ARRAY:
+			case CLASS:
+				return Machine.addressSize;
+			case INT:
+				return Machine.integerSize;
+			case BOOLEAN:
+				return Machine.booleanSize;
+			case VOID:
+				return 0;
+			default:
+				return -1;
+		}
 	}
 
 }

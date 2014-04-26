@@ -1,14 +1,19 @@
 MiniJava Compiler
 =================
 
-[Version 1.0.0 - 04/15/2014]
+[Version 1.0.0 - 04/26/2014]
 
-The following is a LL(1) compiler for a subset of Java, denoted MiniJava. As of now, it appears to work for the most
-part, passing the regression tests performed after each segment.
+The following is a complete MiniJava Compiler implementation, according to the specifications in the docs folder.
 
-Noted bugs:
-* Changing a field of an object in an array causes crashes
-  This is not really a surprise, considering the Contextual Analysis aspect of the project
-  is in fairly rough shape.
-
-As of now, I do not plan on implementing more things to this, unless there is some potential for extra credit.
+Other Features to include in future releases
+--------------------------------------------
+* Static Field Initialization
+* Keyword 'null'
+* Support class constructors
+* 'for' loop
+* String type and string literals
+* Code generation for conditional operations && and ||
+* Overloaded methods
+* Inheritance of fields and methods
+* Dynamic Method Invocation
+* Support for instanceof/super

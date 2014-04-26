@@ -1,13 +1,21 @@
 package miniJava;
 
-import java.io.*;
+import java.io.FileReader;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.FileNotFoundException;
 
-import mJAM.*;
-import miniJava.SyntacticAnalyzer.*;
+import mJAM.Disassembler;
+import mJAM.Interpreter;
+import mJAM.ObjectFile;
+import miniJava.SyntacticAnalyzer.Scanner;
+import miniJava.SyntacticAnalyzer.Parser;
 import miniJava.AbstractSyntaxTrees.Package;
-import miniJava.ContextualAnalyzer.Analyzer;
+import miniJava.AbstractSyntaxTrees.ASTDisplay;
 import miniJava.CodeGenerator.Encoder;
-import miniJava.Exceptions.*;
+import miniJava.ContextualAnalyzer.IdTable;
+import miniJava.ContextualAnalyzer.Analyzer;
+import miniJava.ContextualAnalyzer.Reporter;
 
 public class Compiler {
 
@@ -26,15 +34,22 @@ public class Compiler {
 			Scanner scanner = new Scanner(new BufferedReader(input));
 			Parser parser = new Parser(scanner);
 			Package p = parser.parse();
-
-			// Identification/Type Checking
-			Analyzer analyzer = new Analyzer();
-			analyzer.visitPackage(p, null);
-			int analyzed = analyzer.validate();
 			
-			// Begin Compilation to mJAM
-			if(analyzed == 0) {
+			// Display
+			ASTDisplay display = new ASTDisplay();
+			display.showTree(p);
+			
+			// Contextual Analyzer
+			IdTable table = new IdTable();
+			Analyzer analyzer = new Analyzer();
+			analyzer.visitPackage(p, table);
+			
+			// Compilation
+			if(Reporter.error) {
+				System.exit(rc);
+			} else {
 				
+				// Build mJAM assembly
 				Encoder encoder = new Encoder();
 				encoder.visitPackage(p, null);
 				
@@ -43,20 +58,33 @@ public class Compiler {
 				String objectFileName = args[0].substring(0, pos) + ".mJAM";
 				ObjectFile objF = new ObjectFile(objectFileName);
 				if(objF.write()) {
-					System.out.println("***Object File Failed.");
+					Reporter.emit("Object File Failed.");
 				}
+				
+				// create asm file using disassembler 
+				String asmCodeFileName = "test.asm";
+				System.out.print("Writing assembly file ... ");
+				Disassembler d = new Disassembler(objectFileName);
+				if (d.disassemble()) {
+					System.out.println("FAILED!");
+					return;
+				}
+				else
+					System.out.println("SUCCEEDED");
+				
+				// run
+				System.out.println("Running code ... ");
+				Interpreter.debug(objectFileName, asmCodeFileName);
+
+				System.out.println("*** mJAM execution completed");
 			}
 			
-			System.exit(analyzed);
+			System.exit(0);
 
 		} catch (FileNotFoundException e) {
-			System.out.println("***" + e.getMessage());
+			Reporter.emit(e.getMessage());
 		} catch (IOException e) {
-			System.out.println("***" + e.getMessage());
-		} catch (ScanningException e) {
-			System.out.println("***" + e.getMessage());
-		} catch (ParsingException e) {
-			System.out.println("***" + e.getMessage());
+			Reporter.emit(e.getMessage());
 		}
 
 		System.exit(rc);

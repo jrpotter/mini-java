@@ -5,6 +5,7 @@
  */
 package miniJava.AbstractSyntaxTrees;
 
+import miniJava.CodeGenerator.RuntimeEntity;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class Identifier extends Terminal {
@@ -17,5 +18,6 @@ public class Identifier extends Terminal {
 		return v.visitIdentifier(this, o);
 	}
 
-	public Declaration decl = null;
+	public Declaration decl;
+	public RuntimeEntity entity;
 }

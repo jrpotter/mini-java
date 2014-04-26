@@ -2,6 +2,10 @@ package miniJava.AbstractSyntaxTrees;
 
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
+/**
+ * The following is a custom class, included for use with method and field
+ * declarations.
+ */
 public class Declarators {
 
 	public Declarators(boolean isPrivate, boolean isStatic, Type mt,
