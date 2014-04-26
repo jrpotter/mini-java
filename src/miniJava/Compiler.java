@@ -36,8 +36,8 @@ public class Compiler {
 			Package p = parser.parse();
 			
 			// Display
-			ASTDisplay display = new ASTDisplay();
-			display.showTree(p);
+			// ASTDisplay display = new ASTDisplay();
+			// display.showTree(p);
 			
 			// Contextual Analyzer
 			IdTable table = new IdTable();
@@ -60,23 +60,6 @@ public class Compiler {
 				if(objF.write()) {
 					Reporter.emit("Object File Failed.");
 				}
-				
-				// create asm file using disassembler 
-				String asmCodeFileName = "test.asm";
-				System.out.print("Writing assembly file ... ");
-				Disassembler d = new Disassembler(objectFileName);
-				if (d.disassemble()) {
-					System.out.println("FAILED!");
-					return;
-				}
-				else
-					System.out.println("SUCCEEDED");
-				
-				// run
-				System.out.println("Running code ... ");
-				Interpreter.debug(objectFileName, asmCodeFileName);
-
-				System.out.println("*** mJAM execution completed");
 			}
 			
 			System.exit(0);
