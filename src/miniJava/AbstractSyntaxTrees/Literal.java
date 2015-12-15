@@ -9,7 +9,7 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class Literal extends Terminal {
 
-	public Literal(String spelling, SourcePosition posn) {
-		super(spelling, posn);
-	}
+    public Literal(String spelling, SourcePosition posn) {
+        super(spelling, posn);
+    }
 }

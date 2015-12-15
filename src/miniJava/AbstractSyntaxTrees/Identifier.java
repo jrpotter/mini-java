@@ -10,14 +10,14 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class Identifier extends Terminal {
 
-	public Identifier(String s, SourcePosition posn) {
-		super(s, posn);
-	}
+    public Identifier(String s, SourcePosition posn) {
+        super(s, posn);
+    }
 
-	public <A, R> R visit(Visitor<A, R> v, A o) {
-		return v.visitIdentifier(this, o);
-	}
+    public <A, R> R visit(Visitor<A, R> v, A o) {
+        return v.visitIdentifier(this, o);
+    }
 
-	public Declaration decl;
-	public RuntimeEntity entity;
+    public Declaration decl;
+    public RuntimeEntity entity;
 }

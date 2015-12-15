@@ -9,10 +9,10 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 abstract public class Terminal extends AST {
 
-	public Terminal(String s, SourcePosition posn) {
-		super(posn);
-		spelling = s;
-	}
+    public Terminal(String s, SourcePosition posn) {
+        super(posn);
+        spelling = s;
+    }
 
-	public String spelling;
+    public String spelling;
 }

@@ -9,20 +9,19 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class FieldDecl extends MemberDecl {
 
-	public FieldDecl(boolean isPrivate, boolean isStatic, Type t, String name,
-			SourcePosition posn) {
-		super(isPrivate, isStatic, t, name, posn);
-	}
+    public FieldDecl(boolean isPrivate, boolean isStatic, Type t, String name, SourcePosition posn) {
+        super(isPrivate, isStatic, t, name, posn);
+    }
 
-	public FieldDecl(MemberDecl md, SourcePosition posn) {
-		super(md, posn);
-	}
+    public FieldDecl(MemberDecl md, SourcePosition posn) {
+        super(md, posn);
+    }
 
-	public FieldDecl(Declarators d, String name) {
-		super(d.isPrivate, d.isStatic, d.mt, name, d.posn);
-	}
+    public FieldDecl(Declarators d, String name) {
+        super(d.isPrivate, d.isStatic, d.mt, name, d.posn);
+    }
 
-	public <A, R> R visit(Visitor<A, R> v, A o) {
-		return v.visitFieldDecl(this, o);
-	}
+    public <A, R> R visit(Visitor<A, R> v, A o) {
+        return v.visitFieldDecl(this, o);
+    }
 }

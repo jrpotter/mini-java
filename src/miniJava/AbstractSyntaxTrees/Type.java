@@ -9,11 +9,11 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 abstract public class Type extends AST {
 
-	public Type(TypeKind typ, SourcePosition posn) {
-		super(posn);
-		typeKind = typ;
-	}
+    public Type(TypeKind typ, SourcePosition posn) {
+        super(posn);
+        typeKind = typ;
+    }
 
-	public TypeKind typeKind;
+    public TypeKind typeKind;
 
 }

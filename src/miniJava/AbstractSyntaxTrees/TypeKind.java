@@ -6,5 +6,5 @@
 package miniJava.AbstractSyntaxTrees;
 
 public enum TypeKind {
-	VOID, INT, BOOLEAN, CLASS, ARRAY, UNSUPPORTED, ERROR;
+    VOID, INT, BOOLEAN, CLASS, ARRAY, UNSUPPORTED, ERROR;
 }

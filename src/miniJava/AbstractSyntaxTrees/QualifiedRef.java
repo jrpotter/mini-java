@@ -9,17 +9,17 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public class QualifiedRef extends Reference {
 
-	public QualifiedRef(Reference ref, Identifier id, SourcePosition posn) {
-		super(posn);
-		this.ref = ref;
-		this.id = id;
-	}
+    public QualifiedRef(Reference ref, Identifier id, SourcePosition posn) {
+        super(posn);
+        this.ref = ref;
+        this.id = id;
+    }
 
-	@Override
-	public <A, R> R visit(Visitor<A, R> v, A o) {
-		return v.visitQualifiedRef(this, o);
-	}
+    @Override
+    public <A, R> R visit(Visitor<A, R> v, A o) {
+        return v.visitQualifiedRef(this, o);
+    }
 
-	public Reference ref;
-	public Identifier id;
+    public Reference ref;
+    public Identifier id;
 }

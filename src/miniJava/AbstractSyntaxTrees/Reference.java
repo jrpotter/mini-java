@@ -9,11 +9,11 @@ import miniJava.CodeGenerator.RuntimeEntity;
 import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class Reference extends AST {
-	public Reference(SourcePosition posn) {
-		super(posn);
-	}
+    public Reference(SourcePosition posn) {
+        super(posn);
+    }
 
-	public String spelling;
-	public Declaration decl;
-	public RuntimeEntity entity;
+    public String spelling;
+    public Declaration decl;
+    public RuntimeEntity entity;
 }

@@ -9,7 +9,7 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class NewExpr extends Expression {
 
-	public NewExpr(SourcePosition posn) {
-		super(posn);
-	}
+    public NewExpr(SourcePosition posn) {
+        super(posn);
+    }
 }

@@ -11,14 +11,14 @@ import miniJava.SyntacticAnalyzer.SourcePosition;
 
 public abstract class Declaration extends AST {
 
-	public Declaration(String name, Type type, SourcePosition posn) {
-		super(posn);
-		this.name = name;
-		this.type = type;
-	}
+    public Declaration(String name, Type type, SourcePosition posn) {
+        super(posn);
+        this.name = name;
+        this.type = type;
+    }
 
-	public RuntimeEntity entity;
-	public IdTable table;
-	public String name;
-	public Type type;
+    public RuntimeEntity entity;
+    public IdTable table;
+    public String name;
+    public Type type;
 }
